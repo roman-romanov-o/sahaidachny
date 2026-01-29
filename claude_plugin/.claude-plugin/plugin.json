@@ -1,0 +1,10 @@
+{
+  "name": "saha",
+  "version": "0.2.0",
+  "description": "Hierarchical task planning for autonomous agentic coding",
+  "author": {
+    "name": "Roman Romanov"
+  },
+  "license": "MIT",
+  "keywords": ["planning", "agentic", "task-management", "autonomous"]
+}

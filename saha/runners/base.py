@@ -1,0 +1,101 @@
+"""Abstract base runner interface for LLM-agnostic execution."""
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+@dataclass
+class RunnerResult:
+    """Result from running an LLM agent."""
+
+    success: bool
+    output: str
+    structured_output: dict[str, Any] | None = None
+    error: str | None = None
+    tokens_used: int = 0
+    exit_code: int = 0
+
+    @classmethod
+    def failure(cls, error: str, exit_code: int = 1) -> "RunnerResult":
+        """Create a failure result."""
+        return cls(
+            success=False,
+            output="",
+            error=error,
+            exit_code=exit_code,
+        )
+
+    @classmethod
+    def success_result(
+        cls,
+        output: str,
+        structured_output: dict[str, Any] | None = None,
+        tokens_used: int = 0,
+    ) -> "RunnerResult":
+        """Create a success result."""
+        return cls(
+            success=True,
+            output=output,
+            structured_output=structured_output,
+            tokens_used=tokens_used,
+        )
+
+
+class Runner(ABC):
+    """Abstract base class for LLM runners.
+
+    This interface allows the orchestrator to be LLM-agnostic.
+    Implementations can use Claude Code CLI, direct API calls, or other LLMs.
+    """
+
+    @abstractmethod
+    def run_agent(
+        self,
+        agent_spec_path: Path,
+        prompt: str,
+        context: dict[str, Any] | None = None,
+        timeout: int = 300,
+    ) -> RunnerResult:
+        """Run an agent with the given specification and prompt.
+
+        Args:
+            agent_spec_path: Path to the agent specification file (markdown).
+            prompt: The prompt to send to the agent.
+            context: Additional context to pass to the agent.
+            timeout: Maximum execution time in seconds.
+
+        Returns:
+            RunnerResult with the agent's output.
+        """
+        ...
+
+    @abstractmethod
+    def run_prompt(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        timeout: int = 300,
+    ) -> RunnerResult:
+        """Run a simple prompt without agent specification.
+
+        Args:
+            prompt: The prompt to send.
+            system_prompt: Optional system prompt.
+            timeout: Maximum execution time in seconds.
+
+        Returns:
+            RunnerResult with the output.
+        """
+        ...
+
+    @abstractmethod
+    def is_available(self) -> bool:
+        """Check if the runner is available and properly configured."""
+        ...
+
+    @abstractmethod
+    def get_name(self) -> str:
+        """Get the runner name for identification."""
+        ...

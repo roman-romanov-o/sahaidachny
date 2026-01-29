@@ -1,0 +1,312 @@
+"""Execution loop CLI commands.
+
+This module contains commands for running and managing the agentic execution loop:
+- run: Execute a task through the agentic loop
+- resume: Resume a previously interrupted task
+- status: Show execution status for tasks
+- tools: List available code quality tools
+- clean: Remove execution state files
+- version: Show version information
+"""
+
+from pathlib import Path
+from typing import Annotated
+
+import typer
+
+from saha import __version__
+from saha.commands.common import setup_logging
+from saha.config.settings import Settings
+from saha.orchestrator.factory import create_orchestrator
+from saha.orchestrator.loop import LoopConfig
+from saha.orchestrator.state import StateManager
+from saha.tools.registry import create_default_registry
+
+# Constants
+DEFAULT_MAX_ITERATIONS = 5
+
+
+# -----------------------------------------------------------------------------
+# Command implementations (extracted for testability and reduced complexity)
+# -----------------------------------------------------------------------------
+
+
+def _run_command(
+    task_id: str,
+    task_path: Path | None,
+    max_iterations: int,
+    tools: str | None,
+    playwright: bool,
+    qa_runner: str | None,
+    dry_run: bool,
+    verbose: bool,
+) -> None:
+    """Implementation of the run command logic."""
+    setup_logging(verbose)
+
+    settings = _build_run_settings(verbose, dry_run, qa_runner)
+    resolved_path = _resolve_and_validate_task_path(task_id, task_path, settings)
+    enabled_tools = tools.split(",") if tools else None
+
+    _display_run_info(task_id, resolved_path, max_iterations)
+
+    if dry_run:
+        typer.echo("[DRY RUN] Would execute the loop without making changes.")
+        return
+
+    orchestrator = create_orchestrator(settings)
+    config = LoopConfig(
+        task_id=task_id,
+        task_path=resolved_path,
+        max_iterations=max_iterations,
+        enabled_tools=enabled_tools,
+        playwright_enabled=playwright,
+    )
+
+    state = orchestrator.run(config)
+    _display_run_result(state)
+
+
+def _build_run_settings(verbose: bool, dry_run: bool, qa_runner: str | None) -> Settings:
+    """Build settings with CLI overrides."""
+    settings = Settings(dry_run=dry_run, verbose=verbose)
+
+    if qa_runner:
+        updated_qa = settings.agents.qa.model_copy(update={"runner": qa_runner})
+        updated_agents = settings.agents.model_copy(update={"qa": updated_qa})
+        settings = settings.model_copy(update={"agents": updated_agents})
+
+    return settings
+
+
+def _resolve_and_validate_task_path(
+    task_id: str, task_path: Path | None, settings: Settings
+) -> Path:
+    """Resolve and validate the task path."""
+    resolved_path = task_path or settings.get_task_path(task_id)
+    if not resolved_path.exists():
+        typer.echo(f"Error: Task path does not exist: {resolved_path}", err=True)
+        raise typer.Exit(1)
+    return resolved_path
+
+
+def _display_run_info(task_id: str, task_path: Path, max_iterations: int) -> None:
+    """Display run command startup information."""
+    typer.echo(f"Starting agentic loop for task: {task_id}")
+    typer.echo(f"Task path: {task_path}")
+    typer.echo(f"Max iterations: {max_iterations}")
+
+
+def _display_run_result(state: "ExecutionState") -> None:
+    """Display run command result."""
+    typer.echo(f"\nLoop finished. Final phase: {state.current_phase.value}")
+    typer.echo(f"Iterations completed: {state.current_iteration}")
+
+
+def _resume_command(task_id: str, verbose: bool) -> None:
+    """Implementation of the resume command logic."""
+    setup_logging(verbose)
+
+    settings = Settings(verbose=verbose)
+    orchestrator = create_orchestrator(settings)
+
+    typer.echo(f"Resuming task: {task_id}")
+
+    try:
+        state = orchestrator.resume(task_id)
+        typer.echo(f"\nLoop finished. Final phase: {state.current_phase.value}")
+    except Exception as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1) from None
+
+
+def _status_command(task_id: str | None, verbose: bool) -> None:
+    """Implementation of the status command logic."""
+    settings = Settings()
+    state_manager = StateManager(settings.state_dir)
+
+    if task_id:
+        _show_single_task_status(state_manager, task_id, verbose)
+    else:
+        _list_all_task_statuses(state_manager)
+
+
+def _show_single_task_status(state_manager: StateManager, task_id: str, verbose: bool) -> None:
+    """Display status for a single task."""
+    state = state_manager.load(task_id)
+    if state is None:
+        typer.echo(f"No saved state for task: {task_id}")
+        raise typer.Exit(1)
+
+    typer.echo(f"Task: {state.task_id}")
+    typer.echo(f"Phase: {state.current_phase.value}")
+    typer.echo(f"Iteration: {state.current_iteration}/{state.max_iterations}")
+    typer.echo(f"Started: {state.started_at}")
+    typer.echo(f"Completed: {state.completed_at or 'N/A'}")
+
+    if verbose and state.iterations:
+        typer.echo("\nIterations:")
+        for it in state.iterations:
+            typer.echo(f"  {it.iteration}: DoD={it.dod_achieved}, Quality={it.quality_passed}")
+
+
+def _list_all_task_statuses(state_manager: StateManager) -> None:
+    """List status of all tasks with saved state."""
+    task_ids = state_manager.list_tasks()
+    if not task_ids:
+        typer.echo("No tasks with saved execution state.")
+        return
+
+    typer.echo("Tasks with saved state:")
+    for tid in task_ids:
+        state = state_manager.load(tid)
+        if state:
+            typer.echo(f"  {tid}: {state.current_phase.value} (iter {state.current_iteration})")
+
+
+def _tools_command() -> None:
+    """Implementation of the tools command logic."""
+    registry = create_default_registry()
+
+    typer.echo("Registered tools:")
+    for name in registry.list_all():
+        tool = registry.get(name)
+        if tool:
+            available = "✓" if tool.is_available() else "✗"
+            typer.echo(f"  {available} {name}")
+
+
+def _clean_command(task_id: str | None, all_tasks: bool) -> None:
+    """Implementation of the clean command logic."""
+    settings = Settings()
+    state_manager = StateManager(settings.state_dir)
+
+    if all_tasks:
+        _clean_all_tasks(state_manager)
+    elif task_id:
+        _clean_single_task(state_manager, task_id)
+    else:
+        typer.echo("Specify a task ID or use --all to clean all states.")
+
+
+def _clean_all_tasks(state_manager: StateManager) -> None:
+    """Clean all task states."""
+    task_ids = state_manager.list_tasks()
+    for tid in task_ids:
+        state_manager.delete(tid)
+        typer.echo(f"Cleaned: {tid}")
+    typer.echo(f"Cleaned {len(task_ids)} task(s).")
+
+
+def _clean_single_task(state_manager: StateManager, task_id: str) -> None:
+    """Clean a single task state."""
+    if state_manager.delete(task_id):
+        typer.echo(f"Cleaned state for: {task_id}")
+    else:
+        typer.echo(f"No state found for: {task_id}")
+
+
+def _version_command() -> None:
+    """Implementation of the version command logic."""
+    typer.echo(f"saha version {__version__}")
+
+
+# -----------------------------------------------------------------------------
+# Command registration (minimal - just wires CLI to implementations)
+# -----------------------------------------------------------------------------
+
+
+def register_execution_commands(app: typer.Typer) -> None:
+    """Register all execution-related commands with the Typer app."""
+
+    @app.command()
+    def run(
+        task_id: Annotated[str, typer.Argument(help="Task ID to execute (e.g., task-01)")],
+        task_path: Annotated[
+            Path | None,
+            typer.Option("--path", "-p", help="Path to task folder (default: docs/tasks/<task_id>)"),
+        ] = None,
+        max_iterations: Annotated[
+            int,
+            typer.Option("--max-iter", "-m", help="Maximum loop iterations"),
+        ] = DEFAULT_MAX_ITERATIONS,
+        tools: Annotated[
+            str | None,
+            typer.Option("--tools", "-t", help="Comma-separated list of tools to enable"),
+        ] = None,
+        playwright: Annotated[
+            bool,
+            typer.Option(
+                "--playwright",
+                help="Enable Playwright for UI verification (uses execution-qa-playwright agent)",
+            ),
+        ] = False,
+        qa_runner: Annotated[
+            str | None,
+            typer.Option("--qa-runner", help="Runner for QA agent: claude, gemini, or mock"),
+        ] = None,
+        dry_run: Annotated[
+            bool,
+            typer.Option("--dry-run", help="Simulate execution without actually running"),
+        ] = False,
+        verbose: Annotated[
+            bool,
+            typer.Option("--verbose", "-v", help="Enable verbose output"),
+        ] = False,
+    ) -> None:
+        """Run the agentic loop for a task.
+
+        The loop executes these phases in order:
+        1. Implementation - writes code changes
+        2. QA - verifies against Definition of Done (optionally with Playwright)
+        3. Code Quality - runs ruff, ty, complexity checks
+        4. Manager - updates task artifacts
+        5. DoD Check - determines if task is complete
+
+        Different agents can use different LLM backends. Use --qa-runner to run
+        the QA agent on Gemini while keeping other agents on Claude.
+        """
+        _run_command(task_id, task_path, max_iterations, tools, playwright, qa_runner, dry_run, verbose)
+
+    @app.command()
+    def resume(
+        task_id: Annotated[str, typer.Argument(help="Task ID to resume")],
+        verbose: Annotated[
+            bool,
+            typer.Option("--verbose", "-v", help="Enable verbose output"),
+        ] = False,
+    ) -> None:
+        """Resume a previously started task."""
+        _resume_command(task_id, verbose)
+
+    @app.command()
+    def status(
+        task_id: Annotated[str | None, typer.Argument(help="Task ID to check")] = None,
+        verbose: Annotated[
+            bool,
+            typer.Option("--verbose", "-v", help="Show detailed status"),
+        ] = False,
+    ) -> None:
+        """Show execution status for tasks."""
+        _status_command(task_id, verbose)
+
+    @app.command()
+    def tools() -> None:
+        """List available tools."""
+        _tools_command()
+
+    @app.command()
+    def clean(
+        task_id: Annotated[str | None, typer.Argument(help="Task ID to clean")] = None,
+        all_tasks: Annotated[
+            bool,
+            typer.Option("--all", help="Clean all task states"),
+        ] = False,
+    ) -> None:
+        """Clean execution state files."""
+        _clean_command(task_id, all_tasks)
+
+    @app.command()
+    def version() -> None:
+        """Show version information."""
+        _version_command()

@@ -1,0 +1,1 @@
+/Users/romanromanov/MyProjects/sahaidachny/claude_plugin/agents/execution_implementer.md

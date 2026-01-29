@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/welcome.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "^/sahaidachny$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/help.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

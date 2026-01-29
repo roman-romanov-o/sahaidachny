@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/claude-code/main/schemas/mcp.schema.json",
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@anthropic/mcp-playwright"],
+      "env": {
+        "PLAYWRIGHT_HEADLESS": "true"
+      },
+      "disabled": true,
+      "_comment": "Enable for UI verification in QA agent. Set disabled: false to activate."
+    }
+  }
+}
