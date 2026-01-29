@@ -13,7 +13,7 @@
     ],
     "UserPromptSubmit": [
       {
-        "matcher": "^/sahaidachny$",
+        "matcher": "^/saha$",
         "hooks": [
           {
             "type": "command",
