@@ -25,11 +25,13 @@ def create_runner_registry(settings: Settings) -> RunnerRegistry:
     registry = RunnerRegistry()
 
     # Register runner factories
+    # Stream output by default for transparency during execution
     registry.register_factory(
         RunnerType.CLAUDE,
         ClaudeRunner,
         model=settings.claude_model,
         working_dir=Path.cwd(),
+        stream_output=True,
     )
 
     registry.register_factory(
@@ -125,6 +127,7 @@ def _create_default_runner(settings: Settings) -> Runner:
         return ClaudeRunner(
             model=settings.claude_model,
             working_dir=Path.cwd(),
+            stream_output=True,  # Stream output for transparency
         )
 
 
@@ -138,6 +141,9 @@ def _create_hook_registry(settings: Settings) -> HookRegistry:
             NtfyHook(
                 topic=settings.hooks.ntfy_topic,
                 server=settings.hooks.ntfy_server,
+                token=settings.hooks.ntfy_token,
+                user=settings.hooks.ntfy_user,
+                password=settings.hooks.ntfy_password,
             )
         )
 

@@ -1,28 +1,40 @@
 """Notification hooks using ntfy.sh."""
 
+import base64
 import logging
 import urllib.error
 import urllib.request
 from typing import Any
 
 from saha.hooks.base import Hook, HookEvent
-from saha.models.state import ExecutionState
+from saha.models.state import ExecutionState, StepStatus
 
 logger = logging.getLogger(__name__)
 
 
 class NtfyHook(Hook):
-    """Hook that sends notifications via ntfy.sh."""
+    """Hook that sends notifications via ntfy.sh.
+
+    Authentication can be provided via:
+    - Access token (SAHA_HOOK_NTFY_TOKEN)
+    - Basic auth (SAHA_HOOK_NTFY_USER + SAHA_HOOK_NTFY_PASSWORD)
+    """
 
     def __init__(
         self,
         topic: str,
         server: str = "https://ntfy.sh",
         enabled: bool = True,
+        token: str | None = None,
+        user: str | None = None,
+        password: str | None = None,
     ):
         self._topic = topic
         self._server = server.rstrip("/")
         self._enabled = enabled
+        self._token = token
+        self._user = user
+        self._password = password
 
     @property
     def name(self) -> str:
@@ -55,41 +67,87 @@ class NtfyHook(Hook):
         state: ExecutionState | None,
         error: str | None,
     ) -> tuple[str, str, str, list[str]]:
-        """Build notification content based on event."""
+        """Build notification content with iteration summary."""
         task_id = state.task_id if state else "unknown"
         iterations = state.current_iteration if state else 0
 
+        # Build summary from iteration data
+        summary = self._build_iteration_summary(state)
+
         if event == HookEvent.LOOP_COMPLETE:
             return (
-                f"✅ Task Completed: {task_id}",
-                f"Task {task_id} completed successfully after {iterations} iteration(s).",
+                f"Task Completed: {task_id}",
+                summary or f"Task {task_id} completed successfully after {iterations} iteration(s).",
                 "default",
                 ["white_check_mark", "robot"],
             )
 
         elif event == HookEvent.LOOP_FAILED:
             return (
-                f"❌ Task Failed: {task_id}",
-                f"Task {task_id} failed after {iterations} iteration(s).",
+                f"Task Failed: {task_id}",
+                summary or f"Task {task_id} failed after {iterations} iteration(s).",
                 "high",
                 ["x", "warning"],
             )
 
         elif event == HookEvent.LOOP_ERROR:
-            error_msg = error[:200] if error else "Unknown error"
+            # Don't leak error details - just indicate an error occurred
             return (
-                f"⚠️ Task Error: {task_id}",
-                f"Task {task_id} encountered an error: {error_msg}",
+                f"Task Error: {task_id}",
+                f"An error occurred after {iterations} iteration(s). Check logs for details.",
                 "urgent",
                 ["warning", "rotating_light"],
             )
 
         return (
             f"Task Update: {task_id}",
-            f"Event: {event.value}",
+            summary or f"Event: {event.value}",
             "default",
             ["robot"],
         )
+
+    def _build_iteration_summary(self, state: ExecutionState | None) -> str:
+        """Build a safe summary with no sensitive information.
+
+        Only includes generic status info - no output details, error messages,
+        or fix info that could leak sensitive project information.
+        """
+        if not state or not state.iterations:
+            return ""
+
+        lines = []
+        total_iterations = len(state.iterations)
+
+        for iteration in state.iterations:
+            phases_done = []
+            phases_failed = []
+
+            for step in iteration.steps:
+                phase_name = step.phase.value.replace("_", " ").title()
+                if step.status == StepStatus.COMPLETED:
+                    phases_done.append(phase_name)
+                elif step.status == StepStatus.FAILED:
+                    phases_failed.append(phase_name)
+
+            # Add iteration header if multiple iterations
+            if total_iterations > 1:
+                status = "PASS" if iteration.dod_achieved else "FAIL" if phases_failed else "..."
+                lines.append(f"Iter {iteration.iteration}: {status}")
+
+            # Just list phases without details
+            if phases_done:
+                lines.append(f"  Done: {', '.join(phases_done)}")
+            if phases_failed:
+                lines.append(f"  Failed: {', '.join(phases_failed)}")
+
+        # Final status (generic)
+        final_iter = state.iterations[-1]
+        if final_iter.dod_achieved:
+            lines.append("\nDoD: PASSED")
+        elif final_iter.quality_passed:
+            lines.append("\nQuality: PASSED")
+
+        return "\n".join(lines)
 
     def _send(
         self,
@@ -101,11 +159,22 @@ class NtfyHook(Hook):
         """Send the notification to ntfy.sh."""
         url = f"{self._server}/{self._topic}"
 
+        # Use ASCII-safe title to avoid encoding issues
+        safe_title = title.encode("ascii", errors="replace").decode("ascii")
+
         headers = {
-            "Title": title,
+            "Title": safe_title,
             "Priority": priority,
             "Tags": ",".join(tags),
         }
+
+        # Add authentication
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
+        elif self._user and self._password:
+            credentials = f"{self._user}:{self._password}"
+            encoded = base64.b64encode(credentials.encode()).decode("ascii")
+            headers["Authorization"] = f"Basic {encoded}"
 
         try:
             req = urllib.request.Request(

@@ -92,6 +92,9 @@ class HookConfig(BaseSettings):
     ntfy_enabled: bool = True
     ntfy_topic: str = "sahaidachny"
     ntfy_server: str = "https://ntfy.sh"
+    ntfy_token: str | None = None  # Access token for ntfy authentication
+    ntfy_user: str | None = None  # Username for basic auth (alternative to token)
+    ntfy_password: str | None = None  # Password for basic auth
 
 
 class Settings(BaseSettings):
@@ -102,6 +105,7 @@ class Settings(BaseSettings):
         env_nested_delimiter="__",
         env_file=".env",
         env_file_encoding="utf-8",
+        extra="ignore",  # Ignore unknown env vars from .env files
     )
 
     state_dir: Path = Path(".sahaidachny")
@@ -110,7 +114,7 @@ class Settings(BaseSettings):
     max_retries_per_phase: int = 3
 
     runner: Literal["claude", "gemini", "mock"] = "claude"
-    claude_model: str = "claude-sonnet-4-20250514"
+    claude_model: str = "claude-sonnet-4-5-20250929"  # Claude Sonnet 4.5
     claude_timeout: int = 300
     gemini_model: str = "gemini-2.5-pro"
     gemini_timeout: int = 300

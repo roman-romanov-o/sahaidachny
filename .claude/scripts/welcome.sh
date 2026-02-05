@@ -1,7 +1,12 @@
 #!/bin/bash
 # Sahaidachny welcome message for Claude Code
 
-cat << 'EOF'
+# Get terminal width (default to 80 if not available)
+TERM_WIDTH=${COLUMNS:-$(tput cols 2>/dev/null || echo 80)}
+
+# Full ASCII art requires ~82 columns
+if [ "$TERM_WIDTH" -ge 85 ]; then
+    cat << 'EOF'
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 
@@ -17,5 +22,20 @@ cat << 'EOF'
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF
+else
+    # Compact version for narrow terminals
+    cat << 'EOF'
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ╔═╗╔═╗╦ ╦╔═╗╦╔╦╗╔═╗╔═╗╦ ╦╔╗╔╦ ╦
+  ╚═╗╠═╣╠═╣╠═╣║ ║║╠═╣║  ╠═╣║║║╚╦╝
+  ╚═╝╩ ╩╩ ╩╩ ╩╩═╩╝╩ ╩╚═╝╩ ╩╝╚╝ ╩
+
+  Task Planning & Execution
+  /sahaidachny for help
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EOF
+fi
 
 exit 0

@@ -10,17 +10,6 @@
           }
         ]
       }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "^/saha$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/scripts/help.sh"
-          }
-        ]
-      }
     ]
   }
 }

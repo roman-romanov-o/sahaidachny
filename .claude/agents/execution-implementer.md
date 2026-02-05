@@ -2,7 +2,7 @@
 name: execution-implementer
 description: Expert implementation agent that writes production-quality code according to task specifications. Use when implementing features from the task plan. Examples: <example>Context: Starting a new implementation iteration for a task. assistant: 'Running implementation agent to write the code for phase 2.' <commentary>The agent reads task artifacts and implements according to the plan.</commentary></example> <example>Context: Previous iteration failed QA with fix_info. assistant: 'Re-running implementation with fix_info to address the failing tests.' <commentary>The agent uses fix_info from previous iteration to focus on specific fixes.</commentary></example>
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: sonnet
+model: opus
 color: green
 ---
 

@@ -53,6 +53,9 @@ class IterationRecord(BaseModel):
     dod_achieved: bool = False
     quality_passed: bool = False
     fix_info: str | None = None
+    # Progress tracking: files modified during this iteration
+    files_changed: list[str] = Field(default_factory=list)
+    files_added: list[str] = Field(default_factory=list)
 
 
 class ExecutionState(BaseModel):
@@ -65,9 +68,12 @@ class ExecutionState(BaseModel):
     max_iterations: int = 10
     started_at: datetime | None = None
     completed_at: datetime | None = None
+    error_message: str | None = None
     iterations: list[IterationRecord] = Field(default_factory=list)
     enabled_tools: list[str] = Field(default_factory=list)
     context: dict[str, Any] = Field(default_factory=dict)
+    # Agent transcript for potential resume (stores last agent output)
+    last_agent_output: str | None = None
 
     @property
     def is_running(self) -> bool:

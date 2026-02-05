@@ -7,13 +7,24 @@ from pathlib import Path
 
 from saha.config.settings import Settings
 from saha.hooks.registry import HookRegistry
+from saha.logging import (
+    console,
+    log_agent_prompt,
+    log_iteration_complete,
+    log_iteration_start,
+    log_phase_complete,
+    log_phase_failed,
+    log_phase_start,
+    log_task_complete,
+    log_task_failed,
+)
 from saha.models.result import (
     CodeQualityResult,
     QAResult,
     ResultStatus,
     SubagentResult,
 )
-from saha.models.state import ExecutionState, LoopPhase
+from saha.models.state import ExecutionState, LoopPhase, StepStatus
 from saha.orchestrator.state import StateManager
 from saha.runners.base import Runner
 from saha.runners.registry import RunnerRegistry
@@ -99,18 +110,24 @@ class AgenticLoop:
         return self._settings.get_agent_path(agent_name, variant=config.variant)
 
     def run(self, config: LoopConfig) -> ExecutionState:
-        """Run the agentic loop for a task."""
-        # Load or create state
-        state = self._state_manager.load(config.task_id)
-        if state is None:
-            state = self._state_manager.create(
-                task_id=config.task_id,
-                task_path=config.task_path,
-                max_iterations=config.max_iterations,
-                enabled_tools=config.enabled_tools or self._tools.list_available(),
-            )
+        """Run the agentic loop for a task.
 
-        logger.info(f"Starting agentic loop for task: {config.task_id}")
+        Always starts fresh - use resume() to continue from saved state.
+        """
+        # Delete any existing state and create fresh
+        self._state_manager.delete(config.task_id)
+        state = self._state_manager.create(
+            task_id=config.task_id,
+            task_path=config.task_path,
+            max_iterations=config.max_iterations,
+            enabled_tools=config.enabled_tools or self._tools.list_available(),
+        )
+
+        console.print(f"\n[task]{'═' * 50}[/task]")
+        console.print(f"[task]▶ STARTING TASK: {config.task_id}[/task]")
+        console.print(f"[task]  Path: {config.task_path}[/task]")
+        console.print(f"[task]  Max iterations: {config.max_iterations}[/task]")
+        console.print(f"[task]{'═' * 50}[/task]")
         self._hooks.trigger("loop_start", state=state)
 
         try:
@@ -164,7 +181,7 @@ class AgenticLoop:
     ) -> ExecutionState:
         """Run a single iteration of the loop."""
         iteration = state.start_iteration()
-        logger.info(f"Starting iteration {iteration.iteration}")
+        log_iteration_start(iteration.iteration, state.max_iterations)
         self._hooks.trigger("iteration_start", state=state, iteration=iteration)
 
         # Phase 1: Implementation
@@ -172,6 +189,16 @@ class AgenticLoop:
         if not impl_result.succeeded:
             self._state_manager.fail_phase(state, LoopPhase.IMPLEMENTATION, impl_result.error or "Implementation failed")
             return state
+
+        # Track files changed for progress visibility
+        if impl_result.structured_output:
+            iteration.files_changed = impl_result.structured_output.get("files_changed", [])
+            iteration.files_added = impl_result.structured_output.get("files_added", [])
+            logger.debug(f"Implementation structured output: {impl_result.structured_output}")
+        else:
+            logger.warning("Implementation agent did not return structured JSON output")
+        state.last_agent_output = impl_result.output
+        self._state_manager.save(state)
 
         # Phase 2: QA Verification
         qa_result = self._run_qa(state, config, impl_result)
@@ -206,6 +233,11 @@ class AgenticLoop:
             self._state_manager.mark_completed(state)
 
         iteration.completed_at = datetime.now()
+        log_iteration_complete(
+            iteration.iteration,
+            dod_achieved=iteration.dod_achieved,
+            quality_passed=iteration.quality_passed,
+        )
         self._state_manager.save(state)
         self._hooks.trigger("iteration_complete", state=state, iteration=iteration)
 
@@ -218,6 +250,7 @@ class AgenticLoop:
     ) -> SubagentResult:
         """Run the implementation subagent."""
         self._state_manager.update_phase(state, LoopPhase.IMPLEMENTATION)
+        log_phase_start("Implementation", config.task_id)
         self._hooks.trigger("implementation_start", state=state)
 
         agent_name = "execution-implementer"
@@ -234,11 +267,13 @@ class AgenticLoop:
 
         # Build the prompt
         prompt = self._build_implementation_prompt(state, config)
+        log_agent_prompt("Implementation", prompt)
 
         result = runner.run_agent(agent_path, prompt, context)
 
         if result.success:
             self._state_manager.complete_phase(state, LoopPhase.IMPLEMENTATION, "Code implemented")
+            log_phase_complete("Implementation")
             return SubagentResult(
                 agent_name="implementation",
                 status=ResultStatus.SUCCESS,
@@ -246,6 +281,7 @@ class AgenticLoop:
                 structured_output=result.structured_output or {},
             )
         else:
+            log_phase_failed("Implementation", result.error or "Unknown error")
             return SubagentResult(
                 agent_name="implementation",
                 status=ResultStatus.FAILURE,
@@ -265,6 +301,7 @@ class AgenticLoop:
         when not needed.
         """
         self._state_manager.update_phase(state, LoopPhase.QA)
+        log_phase_start("QA Verification", config.task_id)
         self._hooks.trigger("qa_start", state=state)
 
         # Select agent variant based on Playwright configuration
@@ -288,6 +325,7 @@ class AgenticLoop:
         }
 
         prompt = self._build_qa_prompt(state, config)
+        log_agent_prompt("QA", prompt)
 
         result = runner.run_agent(agent_path, prompt, context)
 
@@ -329,6 +367,7 @@ class AgenticLoop:
         filtering false positives and pre-existing issues.
         """
         self._state_manager.update_phase(state, LoopPhase.CODE_QUALITY)
+        log_phase_start("Code Quality", config.task_id)
         self._hooks.trigger("quality_start", state=state)
 
         agent_name = "execution-code-quality"
@@ -357,6 +396,7 @@ class AgenticLoop:
         }
 
         prompt = self._build_code_quality_prompt(state, config, all_files)
+        log_agent_prompt("Code Quality", prompt)
 
         result = runner.run_agent(agent_path, prompt, context)
 
@@ -367,9 +407,14 @@ class AgenticLoop:
             if quality_passed:
                 self._state_manager.complete_phase(state, LoopPhase.CODE_QUALITY)
             else:
-                self._state_manager.fail_phase(
-                    state, LoopPhase.CODE_QUALITY, fix_info or "Quality check failed"
+                # Record the failure but don't mark the entire task as failed
+                # The loop will continue and retry with fix_info
+                state.record_step(
+                    LoopPhase.CODE_QUALITY,
+                    StepStatus.FAILED,
+                    error=fix_info or "Quality check failed",
                 )
+                self._state_manager.save(state)
 
             return CodeQualityResult(
                 status=ResultStatus.SUCCESS if quality_passed else ResultStatus.FAILURE,
@@ -425,6 +470,7 @@ class AgenticLoop:
     def _run_manager(self, state: ExecutionState, config: LoopConfig) -> None:
         """Run the manager subagent to update task status."""
         self._state_manager.update_phase(state, LoopPhase.MANAGER)
+        log_phase_start("Manager", config.task_id)
         self._hooks.trigger("manager_start", state=state)
 
         agent_name = "execution-manager"
@@ -439,14 +485,21 @@ class AgenticLoop:
             }
 
             prompt = "Update the task status based on the completed implementation iteration."
+            log_agent_prompt("Manager", prompt)
 
-            runner.run_agent(agent_path, prompt, context)
+            result = runner.run_agent(agent_path, prompt, context)
+
+            if result.success:
+                log_phase_complete("Manager")
+            else:
+                log_phase_failed("Manager", result.error or "Unknown error")
 
         self._state_manager.complete_phase(state, LoopPhase.MANAGER)
 
     def _run_dod_check(self, state: ExecutionState, config: LoopConfig) -> bool:
         """Run the DoD subagent to check if the task is complete."""
         self._state_manager.update_phase(state, LoopPhase.DOD_CHECK)
+        log_phase_start("DoD Check", config.task_id)
         self._hooks.trigger("dod_check_start", state=state)
 
         agent_name = "execution-dod"
@@ -461,23 +514,34 @@ class AgenticLoop:
             }
 
             prompt = "Check if all task requirements have been satisfied and the task is complete."
+            log_agent_prompt("DoD", prompt)
 
             result = runner.run_agent(agent_path, prompt, context)
 
-            if result.success and result.structured_output:
-                return bool(result.structured_output.get("task_complete", False))
+            if result.success:
+                task_complete = bool(
+                    result.structured_output.get("task_complete", False)
+                    if result.structured_output
+                    else False
+                )
+                status = "complete" if task_complete else "incomplete"
+                log_phase_complete("DoD Check", f"Task status: {status}")
+                return task_complete
+            else:
+                log_phase_failed("DoD Check", result.error or "Unknown error")
 
         # Default: complete after one successful iteration
+        log_phase_complete("DoD Check", "Default: marking complete after iteration")
         self._state_manager.complete_phase(state, LoopPhase.DOD_CHECK)
         return True
 
     def _finalize(self, state: ExecutionState) -> None:
         """Finalize the loop execution."""
         if state.current_phase == LoopPhase.COMPLETED:
-            logger.info(f"Task {state.task_id} completed successfully")
+            log_task_complete(state.task_id, state.current_iteration)
             self._hooks.trigger("loop_complete", state=state)
         elif state.current_phase == LoopPhase.FAILED:
-            logger.error(f"Task {state.task_id} failed")
+            log_task_failed(state.task_id, state.error_message or "Unknown error")
             self._hooks.trigger("loop_failed", state=state)
         else:
             logger.warning(f"Task {state.task_id} stopped at phase: {state.current_phase}")
@@ -498,6 +562,12 @@ class AgenticLoop:
             parts.append(f"\nPrevious iteration feedback:\n{state.context['fix_info']}")
 
         parts.append("\nRead the task artifacts and implement according to the plan.")
+        parts.append(
+            "\n**IMPORTANT**: After implementation, output a JSON block with files_changed:"
+        )
+        parts.append("```json")
+        parts.append('{"files_changed": ["path/to/file.py"], "files_added": [], "summary": "..."}')
+        parts.append("```")
 
         return "\n".join(parts)
 

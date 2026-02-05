@@ -111,7 +111,12 @@ class StateManager:
         phase: LoopPhase,
         error: str,
     ) -> None:
-        """Mark phase as failed and save."""
+        """Mark phase as failed and save.
+
+        This sets the current phase to FAILED, which will stop the agentic loop.
+        """
+        state.current_phase = LoopPhase.FAILED
+        state.error_message = error
         state.record_step(phase, StepStatus.FAILED, error=error)
         self.save(state)
 
@@ -125,6 +130,7 @@ class StateManager:
         """Mark the entire execution as failed."""
         state.current_phase = LoopPhase.FAILED
         state.completed_at = datetime.now()
+        state.error_message = error
         state.record_step(LoopPhase.FAILED, StepStatus.FAILED, error=error)
         self.save(state)
 
