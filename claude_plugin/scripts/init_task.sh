@@ -285,9 +285,13 @@ if [[ -d "$TEMPLATE_DIR" ]]; then
     fi
 fi
 
+# Set as current task context
+mkdir -p ".sahaidachny" && echo "${FOLDER_NAME}" > ".sahaidachny/current-task"
+
 # Output
 echo "Created task folder: ${TASK_PATH}"
 echo "Task ID: ${TASK_ID}"
 echo "Mode: ${MODE}"
+echo "Current task set to: ${FOLDER_NAME}"
 echo ""
 echo "Next step: /saha:research"

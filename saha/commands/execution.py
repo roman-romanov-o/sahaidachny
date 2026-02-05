@@ -4,6 +4,7 @@ This module contains commands for running and managing the agentic execution loo
 - run: Execute a task through the agentic loop
 - resume: Resume a previously interrupted task
 - status: Show execution status for tasks
+- use: Set/show/clear the current task context
 - tools: List available code quality tools
 - clean: Remove execution state files
 - version: Show version information
@@ -17,6 +18,8 @@ import typer
 from saha import __version__
 from saha.commands.common import setup_logging
 from saha.config.settings import Settings
+from saha.context import clear_current_task, get_current_task, resolve_task_id, set_current_task
+from saha.models.state import ExecutionState
 from saha.orchestrator.factory import create_orchestrator
 from saha.orchestrator.loop import LoopConfig
 from saha.orchestrator.state import StateManager
@@ -24,6 +27,30 @@ from saha.tools.registry import create_default_registry
 
 # Constants
 DEFAULT_MAX_ITERATIONS = 5
+
+
+# -----------------------------------------------------------------------------
+# Autocompletion helpers
+# -----------------------------------------------------------------------------
+
+
+def _complete_task_id(incomplete: str) -> list[str]:
+    """Provide autocompletion for task IDs by scanning the tasks directory."""
+    try:
+        settings = Settings()
+        task_base = settings.task_base_path
+        if not task_base.exists():
+            return []
+
+        # List all directories in the task base path
+        task_dirs = [d.name for d in task_base.iterdir() if d.is_dir()]
+
+        # Filter by incomplete input
+        if incomplete:
+            return [t for t in task_dirs if t.startswith(incomplete)]
+        return task_dirs
+    except Exception:
+        return []
 
 
 # -----------------------------------------------------------------------------
@@ -97,7 +124,7 @@ def _display_run_info(task_id: str, task_path: Path, max_iterations: int) -> Non
     typer.echo(f"Max iterations: {max_iterations}")
 
 
-def _display_run_result(state: "ExecutionState") -> None:
+def _display_run_result(state: ExecutionState) -> None:
     """Display run command result."""
     typer.echo(f"\nLoop finished. Final phase: {state.current_phase.value}")
     typer.echo(f"Iterations completed: {state.current_iteration}")
@@ -211,6 +238,31 @@ def _version_command() -> None:
     typer.echo(f"saha version {__version__}")
 
 
+def _use_command(task_id: str | None, clear: bool) -> None:
+    """Implementation of the use command logic."""
+    if clear:
+        if clear_current_task():
+            typer.echo("Cleared current task context.")
+        else:
+            typer.echo("No current task was set.")
+        return
+
+    if task_id is None:
+        current = get_current_task()
+        if current:
+            typer.echo(f"Current task: {current}")
+        else:
+            typer.echo("No current task set. Use 'saha use <task-id>' to set one.")
+        return
+
+    try:
+        set_current_task(task_id)
+        typer.echo(f"Current task set to: {task_id}")
+    except ValueError as e:
+        typer.echo(f"Error: {e}", err=True)
+        raise typer.Exit(1) from None
+
+
 # -----------------------------------------------------------------------------
 # Command registration (minimal - just wires CLI to implementations)
 # -----------------------------------------------------------------------------
@@ -221,7 +273,13 @@ def register_execution_commands(app: typer.Typer) -> None:
 
     @app.command()
     def run(
-        task_id: Annotated[str, typer.Argument(help="Task ID to execute (e.g., task-01)")],
+        task_id: Annotated[
+            str | None,
+            typer.Argument(
+                help="Task ID to execute (e.g., task-01). Uses current task if omitted.",
+                autocompletion=_complete_task_id,
+            ),
+        ] = None,
         task_path: Annotated[
             Path | None,
             typer.Option("--path", "-p", help="Path to task folder (default: docs/tasks/<task_id>)"),
@@ -256,6 +314,8 @@ def register_execution_commands(app: typer.Typer) -> None:
     ) -> None:
         """Run the agentic loop for a task.
 
+        If no task ID is provided, uses the current task set via 'saha use'.
+
         The loop executes these phases in order:
         1. Implementation - writes code changes
         2. QA - verifies against Definition of Done (optionally with Playwright)
@@ -266,22 +326,44 @@ def register_execution_commands(app: typer.Typer) -> None:
         Different agents can use different LLM backends. Use --qa-runner to run
         the QA agent on Gemini while keeping other agents on Claude.
         """
-        _run_command(task_id, task_path, max_iterations, tools, playwright, qa_runner, dry_run, verbose)
+        try:
+            resolved_id = resolve_task_id(task_id)
+        except ValueError as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1) from None
+        _run_command(resolved_id, task_path, max_iterations, tools, playwright, qa_runner, dry_run, verbose)
 
     @app.command()
     def resume(
-        task_id: Annotated[str, typer.Argument(help="Task ID to resume")],
+        task_id: Annotated[
+            str | None,
+            typer.Argument(
+                help="Task ID to resume. Uses current task if omitted.",
+                autocompletion=_complete_task_id,
+            ),
+        ] = None,
         verbose: Annotated[
             bool,
             typer.Option("--verbose", "-v", help="Enable verbose output"),
         ] = False,
     ) -> None:
-        """Resume a previously started task."""
-        _resume_command(task_id, verbose)
+        """Resume a previously started task.
+
+        If no task ID is provided, uses the current task set via 'saha use'.
+        """
+        try:
+            resolved_id = resolve_task_id(task_id)
+        except ValueError as e:
+            typer.echo(f"Error: {e}", err=True)
+            raise typer.Exit(1) from None
+        _resume_command(resolved_id, verbose)
 
     @app.command()
     def status(
-        task_id: Annotated[str | None, typer.Argument(help="Task ID to check")] = None,
+        task_id: Annotated[
+            str | None,
+            typer.Argument(help="Task ID to check", autocompletion=_complete_task_id),
+        ] = None,
         verbose: Annotated[
             bool,
             typer.Option("--verbose", "-v", help="Show detailed status"),
@@ -297,7 +379,10 @@ def register_execution_commands(app: typer.Typer) -> None:
 
     @app.command()
     def clean(
-        task_id: Annotated[str | None, typer.Argument(help="Task ID to clean")] = None,
+        task_id: Annotated[
+            str | None,
+            typer.Argument(help="Task ID to clean", autocompletion=_complete_task_id),
+        ] = None,
         all_tasks: Annotated[
             bool,
             typer.Option("--all", help="Clean all task states"),
@@ -305,6 +390,25 @@ def register_execution_commands(app: typer.Typer) -> None:
     ) -> None:
         """Clean execution state files."""
         _clean_command(task_id, all_tasks)
+
+    @app.command()
+    def use(
+        task_id: Annotated[
+            str | None,
+            typer.Argument(help="Task ID to set as current (e.g., task-01)", autocompletion=_complete_task_id),
+        ] = None,
+        clear: Annotated[
+            bool,
+            typer.Option("--clear", help="Clear the current task context"),
+        ] = False,
+    ) -> None:
+        """Set, show, or clear the current task context.
+
+        With no arguments, shows the current task.
+        With a task ID, sets it as the active task.
+        With --clear, removes the current task context.
+        """
+        _use_command(task_id, clear)
 
     @app.command()
     def version() -> None:
