@@ -6,13 +6,21 @@ allowed-tools: Task, Read, Glob, Grep, WebSearch, WebFetch, mcp__context7__resol
 
 # Research Task
 
-Conduct critical codebase research for planning.
+Conduct critical codebase research for planning, using the task description as context.
 
 ## Arguments
 
 - **task-path** (optional): Path to task folder (e.g., `docs/tasks/task-01-auth`)
   - If not provided, detects from current context or prompts
 - `--topic=<focus-area>`: Specific area to investigate
+
+## Prerequisites
+
+Before running this command:
+1. Task folder must exist (run `/saha:init` first)
+2. Task description should exist (run `/saha:task` first)
+
+The task description provides essential context for focused research.
 
 ## Execution
 
@@ -36,13 +44,14 @@ Task tool:
 
     Task context:
     - Task path: {task_path}
+    - Task description: {task_path}/task-description.md
     - Task README: {task_path}/README.md
     ${topic ? "- Focus topic: " + topic : ""}
 
     Research the codebase thoroughly. Be critical and skeptical.
     Write findings to: {task_path}/research/
 
-    Start by reading the task README to understand what needs to be researched.
+    Start by reading the task description to understand what we're building and what needs to be researched.
 ```
 
 ### 3. Expected Outputs
@@ -59,7 +68,9 @@ Review the research findings. They may:
 - Identify required adjustments
 - Recommend reconsidering the task
 
-Based on findings, proceed to `/saha:task` to refine task description.
+Based on findings:
+- If the task description needs updates, revise it with `/saha:task`
+- Otherwise, proceed to `/saha:stories` to generate user stories
 
 ## 4. Review Artifacts
 

@@ -35,8 +35,8 @@ EXECUTION COMMANDS (in terminal):
 WORKFLOW:
 
   1. /saha:init my-feature       (auto-sets current task)
-  2. /saha:research               (uses current task)
-  3. /saha:task
+  2. /saha:task                   (define what we're building)
+  3. /saha:research               (explore codebase with context)
   4. /saha:stories
   5. /saha:verify stories
   6. /saha:plan

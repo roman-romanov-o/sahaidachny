@@ -2,13 +2,34 @@
 
 Performs fast, Python-based checks on task artifacts to ensure
 the task is ready for execution. No AI calls needed.
+
+Checks include:
+- Existence checks: Do required artifacts exist?
+- Content quality checks: Do artifacts follow expected patterns?
 """
 
+import logging
 import re
 from enum import Enum
 from pathlib import Path
 
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
+
+
+# Patterns for content validation
+CODE_BLOCK_PATTERN = re.compile(r"```[\w]*\n[\s\S]*?```", re.MULTILINE)
+INLINE_CODE_PATTERN = re.compile(r"`[^`]+`")
+PYTHON_TEST_PATTERN = re.compile(
+    r"(def test_|@pytest\.|assert\s+|unittest\.|self\.assert)"
+)
+USER_STORY_PATTERN = re.compile(
+    r"as\s+a[n]?\s+.+,?\s*i\s+want\s+.+,?\s*so\s+that", re.IGNORECASE
+)
+ACCEPTANCE_CRITERIA_SECTION = re.compile(
+    r"##?\s*(acceptance\s+criteria|given.*when.*then)", re.IGNORECASE
+)
 
 
 class VerificationStatus(str, Enum):
@@ -67,12 +88,19 @@ class TaskVerifier:
         """Run all verification checks and return the result."""
         self.checks = []
 
+        # Existence checks
         self._check_task_description()
         self._check_user_stories()
         self._check_test_specs()
         self._check_implementation_plan()
         self._check_design_decisions()
         self._check_story_phase_assignment()
+
+        # Content quality checks
+        self._check_task_description_content()
+        self._check_user_stories_content()
+        self._check_test_specs_content()
+        self._check_implementation_plan_content()
 
         status = self._determine_status()
 
@@ -317,3 +345,285 @@ class TaskVerifier:
                     message="All stories assigned to phases",
                 )
             )
+
+    # ========== Content Quality Checks ==========
+
+    def _check_task_description_content(self) -> None:
+        """Check task description content quality."""
+        desc_path = self.task_path / "task-description.md"
+        if not desc_path.exists():
+            return  # Existence check already failed
+
+        content = desc_path.read_text()
+
+        # Check for code blocks (implementation details don't belong here)
+        code_blocks = CODE_BLOCK_PATTERN.findall(content)
+        if code_blocks:
+            self.checks.append(
+                CheckResult(
+                    name="task-description-no-code",
+                    passed=False,
+                    message=f"Task description has {len(code_blocks)} code block(s) - remove implementation details",
+                    is_warning=True,
+                )
+            )
+
+        # Check for required sections
+        required_sections = ["problem statement", "success criteria", "scope"]
+        content_lower = content.lower()
+        missing_sections = [
+            s for s in required_sections if s not in content_lower
+        ]
+        if missing_sections:
+            self.checks.append(
+                CheckResult(
+                    name="task-description-sections",
+                    passed=False,
+                    message=f"Missing sections: {', '.join(missing_sections)}",
+                    is_warning=True,
+                )
+            )
+
+        # Check success criteria are measurable (have checkboxes or numbered list)
+        if "success criteria" in content_lower:
+            criteria_section = self._extract_section(content, "success criteria")
+            if criteria_section:
+                has_checkboxes = "[ ]" in criteria_section or "[x]" in criteria_section.lower()
+                has_numbered = bool(re.search(r"^\s*\d+\.", criteria_section, re.MULTILINE))
+                if not has_checkboxes and not has_numbered:
+                    self.checks.append(
+                        CheckResult(
+                            name="task-description-measurable",
+                            passed=False,
+                            message="Success criteria should have checkboxes or numbered list for tracking",
+                            is_warning=True,
+                        )
+                    )
+
+    def _check_user_stories_content(self) -> None:
+        """Check user stories content quality."""
+        stories_dir = self.task_path / "user-stories"
+        if not stories_dir.exists():
+            return
+
+        stories = [f for f in stories_dir.glob("*.md") if f.name != "README.md"]
+        if not stories:
+            return
+
+        issues: list[str] = []
+
+        for story_file in stories:
+            content = story_file.read_text()
+            story_name = story_file.stem
+
+            # Check for user story pattern (As a... I want... So that...)
+            if not USER_STORY_PATTERN.search(content):
+                issues.append(f"{story_name}: missing 'As a/I want/So that' pattern")
+
+            # Check for acceptance criteria section
+            if not ACCEPTANCE_CRITERIA_SECTION.search(content):
+                issues.append(f"{story_name}: missing Acceptance Criteria section")
+
+            # Check story is not too long (> 150 lines suggests too much detail)
+            lines = content.split("\n")
+            if len(lines) > 150:
+                issues.append(f"{story_name}: too long ({len(lines)} lines) - should be concise")
+
+            # Check for code blocks (stories should describe what, not how)
+            code_blocks = CODE_BLOCK_PATTERN.findall(content)
+            if code_blocks:
+                issues.append(f"{story_name}: has code blocks - stories shouldn't have implementation")
+
+        if issues:
+            # Report first 3 issues to avoid noise
+            display_issues = issues[:3]
+            more = f" (+{len(issues) - 3} more)" if len(issues) > 3 else ""
+            self.checks.append(
+                CheckResult(
+                    name="user-stories-content",
+                    passed=False,
+                    message=f"Story issues: {'; '.join(display_issues)}{more}",
+                    is_warning=True,
+                )
+            )
+        else:
+            self.checks.append(
+                CheckResult(
+                    name="user-stories-content",
+                    passed=True,
+                    message="User stories follow expected format",
+                )
+            )
+
+    def _check_test_specs_content(self) -> None:
+        """Check test specs content quality."""
+        specs_dir = self.task_path / "test-specs"
+        if not specs_dir.exists():
+            return
+
+        specs = [f for f in specs_dir.rglob("*.md") if f.name != "README.md"]
+        if not specs:
+            return
+
+        issues: list[str] = []
+
+        for spec_file in specs:
+            content = spec_file.read_text()
+            spec_name = spec_file.stem
+
+            # Check for actual test code (should describe what to test, not implementation)
+            if PYTHON_TEST_PATTERN.search(content):
+                issues.append(f"{spec_name}: contains test implementation code")
+
+            # Check for code blocks that look like test implementations
+            code_blocks = CODE_BLOCK_PATTERN.findall(content)
+            for block in code_blocks:
+                if PYTHON_TEST_PATTERN.search(block):
+                    issues.append(f"{spec_name}: has test code in code blocks - should describe, not implement")
+                    break
+
+        if issues:
+            display_issues = issues[:3]
+            more = f" (+{len(issues) - 3} more)" if len(issues) > 3 else ""
+            self.checks.append(
+                CheckResult(
+                    name="test-specs-content",
+                    passed=False,
+                    message=f"Test spec issues: {'; '.join(display_issues)}{more}",
+                    is_warning=True,
+                )
+            )
+        else:
+            self.checks.append(
+                CheckResult(
+                    name="test-specs-content",
+                    passed=True,
+                    message="Test specs describe tests without implementation code",
+                )
+            )
+
+    def _check_implementation_plan_content(self) -> None:
+        """Check implementation plan content quality."""
+        plan_dir = self.task_path / "implementation-plan"
+        if not plan_dir.exists():
+            return
+
+        phases = list(plan_dir.glob("phase-*.md"))
+        if not phases:
+            return
+
+        issues: list[str] = []
+
+        for phase_file in phases:
+            content = phase_file.read_text()
+            phase_name = phase_file.stem
+
+            # Check for excessive code blocks (plan should be high-level)
+            code_blocks = CODE_BLOCK_PATTERN.findall(content)
+            if len(code_blocks) > 3:
+                issues.append(
+                    f"{phase_name}: has {len(code_blocks)} code blocks - plan should be high-level"
+                )
+
+            # Check for objective/goal section
+            content_lower = content.lower()
+            has_objective = any(
+                term in content_lower
+                for term in ["objective", "goal", "purpose", "overview"]
+            )
+            if not has_objective:
+                issues.append(f"{phase_name}: missing Objective/Goal section")
+
+            # Check for steps or tasks
+            has_steps = "step" in content_lower or "task" in content_lower or "- [ ]" in content
+            if not has_steps:
+                issues.append(f"{phase_name}: missing actionable steps/tasks")
+
+        if issues:
+            display_issues = issues[:3]
+            more = f" (+{len(issues) - 3} more)" if len(issues) > 3 else ""
+            self.checks.append(
+                CheckResult(
+                    name="implementation-plan-content",
+                    passed=False,
+                    message=f"Plan issues: {'; '.join(display_issues)}{more}",
+                    is_warning=True,
+                )
+            )
+        else:
+            self.checks.append(
+                CheckResult(
+                    name="implementation-plan-content",
+                    passed=True,
+                    message="Implementation plan is well-structured",
+                )
+            )
+
+    def _extract_section(self, content: str, section_name: str) -> str | None:
+        """Extract content of a markdown section by name."""
+        lines = content.split("\n")
+        in_section = False
+        section_lines: list[str] = []
+
+        for line in lines:
+            # Check if this is the section header
+            if re.match(rf"^#+\s*{re.escape(section_name)}", line, re.IGNORECASE):
+                in_section = True
+                continue
+
+            # Check if we hit another header (end of section)
+            if in_section and re.match(r"^#+\s+", line):
+                break
+
+            if in_section:
+                section_lines.append(line)
+
+        return "\n".join(section_lines) if section_lines else None
+
+
+# Placeholder pattern for unfilled template artifacts
+TEMPLATE_PLACEHOLDER_PATTERN = re.compile(r"\{\{[^}]+\}\}")
+
+
+class CleanupResult(BaseModel):
+    """Result of template artifact cleanup."""
+
+    removed_files: list[str]
+    total_removed: int
+
+
+def cleanup_template_artifacts(task_path: Path) -> CleanupResult:
+    """Remove files with unfilled template placeholders.
+
+    Scans all markdown files in the task directory and removes any
+    that still contain {{...}} placeholder patterns, indicating
+    they were created from templates but never properly filled in.
+
+    Args:
+        task_path: Path to the task directory.
+
+    Returns:
+        CleanupResult with list of removed files.
+    """
+    removed_files: list[str] = []
+
+    # Scan all markdown files in the task directory
+    for md_file in task_path.rglob("*.md"):
+        # Skip the task-description.md as it's the main artifact
+        if md_file.name == "task-description.md":
+            continue
+
+        try:
+            content = md_file.read_text()
+            if TEMPLATE_PLACEHOLDER_PATTERN.search(content):
+                relative_path = str(md_file.relative_to(task_path))
+                logger.info(f"Removing unfilled template artifact: {relative_path}")
+                md_file.unlink()
+                removed_files.append(relative_path)
+        except OSError as e:
+            logger.warning(f"Failed to process {md_file}: {e}")
+
+    return CleanupResult(
+        removed_files=removed_files,
+        total_removed=len(removed_files),
+    )

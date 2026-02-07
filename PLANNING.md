@@ -116,9 +116,9 @@ Ready for Execution
 For production codebases with existing patterns.
 
 ```
-Run Research with Agent (auto)
-    ↓
 Create Task Description (user input)
+    ↓
+Run Research with Agent (auto, uses task as context)
     ↓
 Create User Stories (auto-generated)
     ↓
@@ -173,9 +173,9 @@ flowchart TD
     L_verifyStories --> more["..."]
 
     %% Right branch - Care about codebase
-    care --> R_research["Run Research with Agent"]
-    R_research --> R_createTask[/"Create Task Description"/]
-    R_createTask --> R_createStories["Create User Stories"]
+    care --> R_createTask[/"Create Task Description"/]
+    R_createTask --> R_research["Run Research with Agent"]
+    R_research --> R_createStories["Create User Stories"]
     R_createStories --> R_verifyStories[/"Verify User Stories"/]
     R_verifyStories --> R_createDD["Create Design Decisions"]
     R_createDD --> R_verifyDD[/"Verify Design Decisions"/]

@@ -229,11 +229,11 @@ This creates a task folder at `docs/tasks/task-01-user-authentication/`.
 ### 2. Define the Task (Planning)
 
 ```bash
-# Explore the codebase first (for existing projects)
-/saha:research
-
 # Define what you want to build
 /saha:task
+
+# Explore the codebase with task context (for existing projects)
+/saha:research
 
 # Generate user stories
 /saha:stories
@@ -297,9 +297,9 @@ Ready for Execution
 For existing codebases where patterns and architecture matter:
 
 ```
-Run Research with Agent (auto)
-    ↓
 Create Task Description (user input)
+    ↓
+Run Research with Agent (auto, uses task as context)
     ↓
 Create User Stories (auto-generated)
     ↓
@@ -629,9 +629,9 @@ Phase is complete when:
 ```mermaid
 flowchart TD
     start[Start Planning] --> init["/saha:init task-name"]
-    init --> research["/saha:research"]
-    research --> task["/saha:task"]
-    task --> stories["/saha:stories"]
+    init --> task["/saha:task"]
+    task --> research["/saha:research"]
+    research --> stories["/saha:stories"]
     stories --> verify_stories["/saha:verify stories"]
 
     verify_stories -->|Approved| decide["/saha:decide"]
@@ -656,7 +656,7 @@ flowchart TD
 
 #### Tips for Effective Planning
 
-1. **Start with research** - Understanding existing patterns prevents architectural conflicts
+1. **Define the task first** - A clear task description gives research context and focus
 2. **Keep stories small** - Each story should be implementable in one iteration
 3. **Define clear acceptance criteria** - Vague criteria lead to endless iterations
 4. **Capture edge cases explicitly** - Edge cases are where bugs hide
@@ -1195,9 +1195,9 @@ saha run task-01 --tools ruff,ty,complexity
 
 ### Planning Phase Best Practices
 
-1. **Always start with research** for existing codebases
-   - Understand patterns before proposing changes
-   - Identify potential conflicts early
+1. **Define the task clearly before research**
+   - A good task description gives the research agent context
+   - This leads to more focused, relevant research findings
 
 2. **Write small, focused user stories**
    - Each story should be completable in 1-3 iterations

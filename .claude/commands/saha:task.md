@@ -20,9 +20,8 @@ Create a comprehensive task description document through interactive refinement.
 
 Before running this command:
 1. Task folder must exist (run `/saha:init` first)
-2. Research should be done (run `/saha:research` first)
 
-Check for `research/*.md` files. If none exist, suggest running research first.
+This is typically the first planning step after init. The task description provides context for subsequent research.
 
 ## Execution
 
@@ -30,7 +29,7 @@ Check for `research/*.md` files. If none exist, suggest running research first.
 
 Read existing materials:
 - `{task_path}/README.md` - Task overview
-- `{task_path}/research/*.md` - Research findings (if any)
+- `{task_path}/research/*.md` - Research findings (if research was already done)
 
 ### 2. Interactive Task Definition
 
@@ -127,13 +126,15 @@ Measurable outcomes that define "done":
 - [Link to related documentation]
 ```
 
-### 4. Incorporate Research
+### 4. Incorporate Research (if available)
 
-If research documents exist:
+If research documents already exist in `research/`:
 - Pull key findings into Technical Context
 - Reference research files
 - Include validated/invalidated assumptions
 - Add identified risks
+
+Note: Research typically runs after task description. The Technical Context section can be updated later when research completes.
 
 ### 5. Validate with User
 
