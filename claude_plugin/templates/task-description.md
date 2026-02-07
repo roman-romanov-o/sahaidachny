@@ -67,6 +67,23 @@ Measurable outcomes that define "done":
 
 - {{integration_point}}
 
+## Planning Artifacts
+
+<!-- Check off artifacts as they are created -->
+
+### Required
+
+- [ ] **User Stories** - `stories/` folder
+- [ ] **Implementation Plan** - `plan/` folder with phases
+- [ ] **Test Specifications** - `test-specs/` folder
+
+### Optional
+
+- [ ] **UI Design** - `ui-design/` folder (for frontend work, uses `/frontend-design` skill)
+- [ ] **API Contracts** - `contracts/` folder (for API work)
+- [ ] **Design Decisions** - `decisions/` folder (for architectural choices)
+- [ ] **Research Report** - `research/` folder (for complex unknowns)
+
 ## Open Questions
 
 - [ ] {{open_question_1}}

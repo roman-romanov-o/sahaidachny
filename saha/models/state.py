@@ -13,6 +13,7 @@ class LoopPhase(str, Enum):
 
     IDLE = "idle"
     IMPLEMENTATION = "implementation"
+    TEST_CRITIQUE = "test_critique"
     QA = "qa"
     CODE_QUALITY = "code_quality"
     MANAGER = "manager"
@@ -50,6 +51,7 @@ class IterationRecord(BaseModel):
     started_at: datetime
     completed_at: datetime | None = None
     steps: list[StepRecord] = Field(default_factory=list)
+    test_critique_passed: bool = False
     dod_achieved: bool = False
     quality_passed: bool = False
     fix_info: str | None = None

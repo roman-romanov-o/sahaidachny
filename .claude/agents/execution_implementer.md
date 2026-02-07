@@ -82,13 +82,14 @@ After implementation, provide a structured response:
 ```json
 {
   "status": "success" | "partial" | "blocked",
-  "files_changed": ["path/to/file1.py", "path/to/file2.py"],
-  "files_added": ["path/to/new_file.py"],
   "summary": "Brief description of changes made",
   "notes": "Any important observations or concerns",
   "next_steps": "What should be verified or implemented next"
 }
 ```
+
+Note: File changes (files_changed, files_added) are automatically tracked by the
+orchestrator from Claude Code's tool metadata - no need to list them manually.
 
 ## Tools Available
 

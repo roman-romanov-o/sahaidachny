@@ -16,13 +16,14 @@ from saha.runners.base import Runner, RunnerResult
 
 logger = logging.getLogger(__name__)
 
-# Theme for streaming output
+# Cossack-inspired theme for streaming output: visible on light/dark terminals
 _STREAM_THEME = Theme({
-    "model": "cyan",  # Model's text responses
-    "model.thinking": "dim cyan italic",  # Model's reasoning
-    "tool": "dim",  # Tool calls (subdued)
-    "tool.name": "dim yellow",  # Tool name in brackets
-    "error": "bold red",
+    "model": "bright_white",  # Model's text responses - high visibility
+    "model.indicator": "bold bright_blue",  # ▸ indicator
+    "tool": "white",  # Tool details - readable
+    "tool.name": "bold bright_yellow",  # [Read] - prominent yellow
+    "tool.warn": "bright_yellow",  # Warnings from tool output
+    "error": "bold bright_red",  # Errors - attention
 })
 
 # Console for streaming output (separate from logging console)
@@ -50,6 +51,47 @@ class ClaudeRunner(Runner):
         self._working_dir = working_dir or Path.cwd()
         self._allowed_tools = allowed_tools
         self._stream_output = stream_output
+
+    def _extract_file_changes_from_events(
+        self,
+        events: list[dict[str, Any]],
+    ) -> tuple[list[str], list[str]]:
+        """Extract file changes from Claude Code's tool_use_result metadata.
+
+        Parses the JSON events from --output-format json to find actual file
+        operations performed by Write and Edit tools.
+
+        Returns:
+            Tuple of (files_changed, files_added) with file paths.
+        """
+        files_changed: list[str] = []
+        files_added: list[str] = []
+        seen_files: set[str] = set()  # Avoid duplicates
+
+        for event in events:
+            if event.get("type") != "user":
+                continue
+
+            tool_result = event.get("tool_use_result")
+            if not isinstance(tool_result, dict):
+                continue
+
+            file_path = tool_result.get("filePath")
+            if not file_path or file_path in seen_files:
+                continue
+
+            seen_files.add(file_path)
+
+            # Write tool: has "type" field indicating "create" or similar
+            if tool_result.get("type") == "create":
+                files_added.append(file_path)
+                logger.debug(f"Detected file created: {file_path}")
+            # Edit tool: has "oldString"/"newString" or "structuredPatch"
+            elif "oldString" in tool_result or "structuredPatch" in tool_result:
+                files_changed.append(file_path)
+                logger.debug(f"Detected file edited: {file_path}")
+
+        return files_changed, files_added
 
     def run_agent(
         self,
@@ -109,10 +151,18 @@ class ClaudeRunner(Runner):
         cmd: list[str],
         timeout: int,
     ) -> RunnerResult:
-        """Execute command with output capture (no streaming)."""
+        """Execute command with output capture using JSON format.
+
+        Uses --output-format json to capture full event stream including
+        tool_use_result metadata for reliable file change tracking.
+        """
+        # Use JSON output format to get full event metadata
+        json_cmd = cmd.copy()
+        json_cmd.extend(["--output-format", "json"])
+
         try:
             result = subprocess.run(
-                cmd,
+                json_cmd,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -133,9 +183,27 @@ class ClaudeRunner(Runner):
                     exit_code=result.returncode,
                 )
 
+            # Parse JSON events from NDJSON output
+            events = self._parse_ndjson_events(result.stdout)
+
+            # Extract text output from events
+            text_output = self._extract_text_from_events(events)
+
+            # Extract file changes from tool_use_result metadata
+            files_changed, files_added = self._extract_file_changes_from_events(events)
+
+            # Try to parse any structured JSON output from the text
+            structured_output = self._try_parse_json(text_output) or {}
+
+            # Merge file changes from metadata (these override any LLM self-report)
+            if files_changed or files_added:
+                structured_output["files_changed"] = files_changed
+                structured_output["files_added"] = files_added
+                logger.info(f"Extracted file metadata: changed={files_changed}, added={files_added}")
+
             return RunnerResult.success_result(
-                output=result.stdout,
-                structured_output=self._try_parse_json(result.stdout),
+                output=text_output,
+                structured_output=structured_output if structured_output else None,
             )
 
         except subprocess.TimeoutExpired:
@@ -150,6 +218,38 @@ class ClaudeRunner(Runner):
             )
         except Exception as e:
             return RunnerResult.failure(str(e), exit_code=1)
+
+    def _parse_ndjson_events(self, output: str) -> list[dict[str, Any]]:
+        """Parse newline-delimited JSON events from claude output."""
+        events: list[dict[str, Any]] = []
+        for line in output.strip().split("\n"):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                event = json.loads(line)
+                if isinstance(event, dict):
+                    events.append(event)
+            except json.JSONDecodeError:
+                logger.debug(f"Skipped non-JSON line: {line[:100]}")
+        return events
+
+    def _extract_text_from_events(self, events: list[dict[str, Any]]) -> str:
+        """Extract text output from assistant messages in events."""
+        text_parts: list[str] = []
+        for event in events:
+            if event.get("type") == "assistant":
+                message = event.get("message", {})
+                content = message.get("content", [])
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+            elif event.get("type") == "result":
+                # Final result text
+                result_text = event.get("result", "")
+                if result_text and result_text not in text_parts:
+                    text_parts.append(result_text)
+        return "\n".join(text_parts)
 
     def _execute_with_streaming(
         self,
@@ -172,6 +272,7 @@ class ClaudeRunner(Runner):
             )
 
             collected_text: list[str] = []
+            collected_events: list[dict[str, Any]] = []  # Collect all events for file tracking
             tool_state: dict[str, Any] = {}  # Track current tool call state
 
             # Stream and parse NDJSON output in real-time
@@ -185,6 +286,7 @@ class ClaudeRunner(Runner):
                         event = json.loads(line)
                         # Only handle dict events, skip arrays/primitives
                         if isinstance(event, dict):
+                            collected_events.append(event)
                             self._handle_stream_event(event, collected_text, tool_state)
                     except json.JSONDecodeError:
                         # Non-JSON line, just print it
@@ -217,9 +319,21 @@ class ClaudeRunner(Runner):
                     exit_code=process.returncode,
                 )
 
+            # Extract file changes from collected events
+            files_changed, files_added = self._extract_file_changes_from_events(collected_events)
+
+            # Try to parse any structured JSON output from the text
+            structured_output = self._try_parse_json(full_output) or {}
+
+            # Merge file changes from metadata (these override any LLM self-report)
+            if files_changed or files_added:
+                structured_output["files_changed"] = files_changed
+                structured_output["files_added"] = files_added
+                logger.info(f"Extracted file metadata: changed={files_changed}, added={files_added}")
+
             return RunnerResult.success_result(
                 output=full_output,
-                structured_output=self._try_parse_json(full_output),
+                structured_output=structured_output if structured_output else None,
             )
 
         except subprocess.TimeoutExpired:
@@ -270,7 +384,7 @@ class ClaudeRunner(Runner):
                     elif block.get("type") == "text":
                         # Starting text block - show indicator if coming from tools
                         if tool_state.get("last_was_tool"):
-                            _stream_console.print("\n[model]▸[/model] ", end="")
+                            _stream_console.print("\n[model.indicator]▸[/model.indicator] ", end="")
                         tool_state["text_buffer"] = ""
 
             elif inner_type == "content_block_delta":
@@ -308,7 +422,7 @@ class ClaudeRunner(Runner):
             if isinstance(tool_result, dict):
                 stderr = tool_result.get("stderr", "")
                 if stderr:
-                    _stream_console.print(f"[tool]  ⚠ {stderr[:100]}[/tool]")
+                    _stream_console.print(f"[tool.warn]  ⚠ {stderr[:100]}[/tool.warn]")
 
         elif event_type == "error":
             error = event.get("error", {})

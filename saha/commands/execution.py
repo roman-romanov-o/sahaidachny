@@ -24,6 +24,7 @@ from saha.orchestrator.factory import create_orchestrator
 from saha.orchestrator.loop import LoopConfig
 from saha.orchestrator.state import StateManager
 from saha.tools.registry import create_default_registry
+from saha.verification import TaskVerifier, VerificationResult, VerificationStatus
 
 # Constants
 DEFAULT_MAX_ITERATIONS = 5
@@ -67,6 +68,7 @@ def _run_command(
     qa_runner: str | None,
     dry_run: bool,
     verbose: bool,
+    skip_verify: bool,
 ) -> None:
     """Implementation of the run command logic."""
     setup_logging(verbose)
@@ -74,6 +76,13 @@ def _run_command(
     settings = _build_run_settings(verbose, dry_run, qa_runner)
     resolved_path = _resolve_and_validate_task_path(task_id, task_path, settings)
     enabled_tools = tools.split(",") if tools else None
+
+    # Run verification unless explicitly skipped
+    if not skip_verify:
+        verification_result = _run_verification(task_id, resolved_path)
+        if not verification_result.can_proceed():
+            typer.echo("\nVerification failed. Use --skip-verify to bypass.", err=True)
+            raise typer.Exit(1)
 
     _display_run_info(task_id, resolved_path, max_iterations)
 
@@ -128,6 +137,40 @@ def _display_run_result(state: ExecutionState) -> None:
     """Display run command result."""
     typer.echo(f"\nLoop finished. Final phase: {state.current_phase.value}")
     typer.echo(f"Iterations completed: {state.current_iteration}")
+
+
+def _run_verification(task_id: str, task_path: Path) -> VerificationResult:
+    """Run verification checks and display results."""
+    typer.echo("Verifying task artifacts...")
+
+    verifier = TaskVerifier(task_path)
+    result = verifier.verify(task_id)
+
+    _display_verification_result(result)
+    return result
+
+
+def _display_verification_result(result: VerificationResult) -> None:
+    """Display verification result with colored status indicators."""
+    status_symbols = {
+        VerificationStatus.PASSED: typer.style("PASSED", fg=typer.colors.GREEN, bold=True),
+        VerificationStatus.WARNINGS: typer.style("WARNINGS", fg=typer.colors.YELLOW, bold=True),
+        VerificationStatus.FAILED: typer.style("FAILED", fg=typer.colors.RED, bold=True),
+    }
+
+    typer.echo(f"\nVerification: {status_symbols[result.status]}")
+    typer.echo("")
+
+    for check in result.checks:
+        if check.passed:
+            symbol = typer.style("[ok]", fg=typer.colors.GREEN)
+        elif check.is_warning:
+            symbol = typer.style("[warn]", fg=typer.colors.YELLOW)
+        else:
+            symbol = typer.style("[fail]", fg=typer.colors.RED)
+        typer.echo(f"  {symbol} {check.name}: {check.message}")
+
+    typer.echo("")
 
 
 def _resume_command(task_id: str, verbose: bool) -> None:
@@ -311,10 +354,22 @@ def register_execution_commands(app: typer.Typer) -> None:
             bool,
             typer.Option("--verbose", "-v", help="Enable verbose output"),
         ] = False,
+        skip_verify: Annotated[
+            bool,
+            typer.Option("--skip-verify", help="Skip artifact verification checks"),
+        ] = False,
     ) -> None:
         """Run the agentic loop for a task.
 
         If no task ID is provided, uses the current task set via 'saha use'.
+
+        Before execution, verifies that task artifacts are complete:
+        - task-description.md exists
+        - At least 1 user story
+        - At least 1 test spec
+        - At least 1 implementation phase
+
+        Use --skip-verify to bypass verification and run anyway.
 
         The loop executes these phases in order:
         1. Implementation - writes code changes
@@ -331,7 +386,17 @@ def register_execution_commands(app: typer.Typer) -> None:
         except ValueError as e:
             typer.echo(f"Error: {e}", err=True)
             raise typer.Exit(1) from None
-        _run_command(resolved_id, task_path, max_iterations, tools, playwright, qa_runner, dry_run, verbose)
+        _run_command(
+            resolved_id,
+            task_path,
+            max_iterations,
+            tools,
+            playwright,
+            qa_runner,
+            dry_run,
+            verbose,
+            skip_verify,
+        )
 
     @app.command()
     def resume(

@@ -127,3 +127,31 @@ class CodeQualityResult(BaseModel):
     def has_blocking_issues(self) -> bool:
         """Check if there are blocking issues."""
         return self.blocking_issues_count > 0
+
+
+class TestCritiqueIssue(BaseModel):
+    """Single test quality issue found during critique."""
+
+    severity: str  # critical, high, medium
+    file: str
+    line: int | None = None
+    pattern: str  # over_mocking, mocking_sut, placeholder, etc.
+    description: str
+
+
+class TestCritiqueResult(BaseModel):
+    """Result from test critique subagent."""
+
+    status: ResultStatus
+    passed: bool = False  # True if tests are not hollow
+    test_quality_score: str = "C"  # A, B, C, D, F
+    tests_analyzed: int = 0
+    hollow_tests: int = 0
+    issues: list[TestCritiqueIssue | dict[str, Any]] = Field(default_factory=list)
+    summary: str = ""
+    fix_info: str | None = None
+
+    @property
+    def is_blocking(self) -> bool:
+        """Check if test quality blocks QA (score D or F)."""
+        return self.test_quality_score in ("D", "F")

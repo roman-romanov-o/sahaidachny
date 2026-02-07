@@ -10,21 +10,31 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.theme import Theme
 
-# Custom theme for log levels and components
+# Cossack-inspired theme: bold blue/yellow palette with good terminal visibility
 SAHA_THEME = Theme({
-    "info": "cyan",
-    "warning": "yellow",
+    # Log levels
+    "info": "bright_cyan",
+    "warning": "bright_yellow",
     "error": "bold red",
     "critical": "bold white on red",
-    "debug": "dim",
-    "phase": "bold magenta",
-    "iteration": "bold green",
-    "task": "bold blue",
-    "tool": "dim cyan",
-    "success": "bold green",
-    "failure": "bold red",
-    "prompt": "dim yellow",
-    "prompt.header": "yellow",
+    "debug": "bright_black",
+    # Execution phases
+    "phase": "bold bright_blue",
+    "phase.border": "bright_blue",
+    "iteration": "bold bright_yellow",
+    "iteration.border": "bright_yellow",
+    "task": "bold bright_cyan",
+    # Tool calls
+    "tool": "bright_cyan",
+    "tool.name": "bold bright_yellow",
+    "tool.detail": "white",
+    # Status indicators
+    "success": "bold bright_green",
+    "failure": "bold bright_red",
+    # Prompt display
+    "prompt": "white",
+    "prompt.header": "bold bright_yellow",
+    "prompt.border": "bright_yellow",
 })
 
 # Shared console instance
@@ -98,9 +108,9 @@ def setup_logging(verbose: bool = False) -> None:
 
 def log_phase_start(phase: str, task_id: str) -> None:
     """Log the start of a loop phase with prominent styling."""
-    console.print(f"\n[phase]{'─' * 50}[/phase]")
+    console.print(f"\n[phase.border]{'─' * 50}[/phase.border]")
     console.print(f"[phase]▶ {phase.upper()}[/phase] [task]{task_id}[/task]")
-    console.print(f"[phase]{'─' * 50}[/phase]")
+    console.print(f"[phase.border]{'─' * 50}[/phase.border]")
 
 
 def log_phase_complete(phase: str, message: str = "") -> None:
@@ -118,7 +128,7 @@ def log_phase_failed(phase: str, error: str) -> None:
 
 def log_iteration_start(iteration: int, max_iterations: int) -> None:
     """Log the start of a loop iteration."""
-    console.print(f"\n[iteration]━━━ Iteration {iteration}/{max_iterations} ━━━[/iteration]")
+    console.print(f"\n[iteration.border]━━━[/iteration.border] [iteration]Iteration {iteration}/{max_iterations}[/iteration] [iteration.border]━━━[/iteration.border]")
 
 
 def log_iteration_complete(iteration: int, dod_achieved: bool, quality_passed: bool) -> None:
@@ -133,14 +143,14 @@ def log_iteration_complete(iteration: int, dod_achieved: bool, quality_passed: b
     else:
         status_parts.append("[failure]Quality ✗[/failure]")
 
-    console.print(f"[iteration]━━━ Iteration {iteration} complete[/iteration]: {' | '.join(status_parts)}")
+    console.print(f"[iteration.border]━━━[/iteration.border] [iteration]Iteration {iteration} complete[/iteration]: {' | '.join(status_parts)}")
 
 
 def log_tool_call(tool_name: str, details: str = "") -> None:
-    """Log a tool being called (subdued styling)."""
-    msg = f"[tool][Tool: {tool_name}][/tool]"
+    """Log a tool being called."""
+    msg = f"[tool.name]\\[{tool_name}][/tool.name]"
     if details:
-        msg += f" {details[:80]}{'...' if len(details) > 80 else ''}"
+        msg += f" [tool.detail]{details[:80]}{'...' if len(details) > 80 else ''}[/tool.detail]"
     console.print(msg)
 
 
@@ -167,8 +177,8 @@ def log_agent_prompt(agent_name: str, prompt: str) -> None:
         agent_name: Name of the agent (e.g., "Implementation", "QA").
         prompt: The full prompt text.
     """
-    console.print(f"[prompt.header]┌─ Prompt → {agent_name}[/prompt.header]")
+    console.print(f"[prompt.border]┌─[/prompt.border] [prompt.header]Prompt → {agent_name}[/prompt.header]")
     # Indent each line of the prompt
     for line in prompt.split("\n"):
-        console.print(f"[prompt]│ {line}[/prompt]")
-    console.print(f"[prompt.header]└{'─' * 40}[/prompt.header]")
+        console.print(f"[prompt.border]│[/prompt.border] [prompt]{line}[/prompt]")
+    console.print(f"[prompt.border]└{'─' * 40}[/prompt.border]")

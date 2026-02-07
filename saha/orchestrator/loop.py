@@ -23,6 +23,7 @@ from saha.models.result import (
     QAResult,
     ResultStatus,
     SubagentResult,
+    TestCritiqueResult,
 )
 from saha.models.state import ExecutionState, LoopPhase, StepStatus
 from saha.orchestrator.state import StateManager
@@ -49,15 +50,16 @@ class AgenticLoop:
     """Orchestrates the agentic implementation loop.
 
     The loop follows this flow:
-    1. Get next task/phase to implement
-    2. Run Implementation Subagent → produces code diff
-    3. Run QA Subagent → verifies DoD with tools
-    4. If DoD not achieved → back to step 2 with fix info
-    5. Run Code Quality Subagent → checks Ruff, ty, complexity
-    6. If quality fails → back to step 2 with fix info
-    7. Run Manager Subagent → updates task status
-    8. Run DoD Subagent → checks if task is complete
-    9. If complete → end, else → back to step 1
+    1. Run Implementation Subagent → produces code diff
+    2. Run Test Critique Subagent → analyzes test quality for hollow tests
+    3. If tests are hollow (D/F) → back to step 1 with fix info
+    4. Run QA Subagent → verifies DoD with tools
+    5. If DoD not achieved → back to step 1 with fix info
+    6. Run Code Quality Subagent → checks Ruff, ty, complexity
+    7. If quality fails → back to step 1 with fix info
+    8. Run Manager Subagent → updates task status
+    9. Run DoD Subagent → checks if task is complete
+    10. If complete → end, else → back to step 1
 
     Supports multiple LLM backends via RunnerRegistry, allowing different
     agents to use different runners (e.g., Claude for implementation, Gemini for QA).
@@ -200,7 +202,19 @@ class AgenticLoop:
         state.last_agent_output = impl_result.output
         self._state_manager.save(state)
 
-        # Phase 2: QA Verification
+        # Phase 2: Test Critique (analyze test quality before running)
+        critique_result = self._run_test_critique(state, config, impl_result)
+        if not critique_result.passed:
+            # Loop back with fix info - tests are hollow
+            state.context["fix_info"] = critique_result.fix_info
+            iteration.fix_info = critique_result.fix_info
+            self._state_manager.save(state)
+            self._hooks.trigger("test_critique_failed", state=state, critique_result=critique_result)
+            return state
+
+        iteration.test_critique_passed = True
+
+        # Phase 3: QA Verification
         qa_result = self._run_qa(state, config, impl_result)
         if not qa_result.dod_achieved:
             # Loop back with fix info
@@ -212,7 +226,7 @@ class AgenticLoop:
 
         iteration.dod_achieved = True
 
-        # Phase 3: Code Quality
+        # Phase 4: Code Quality
         quality_result = self._run_code_quality(state, config, impl_result)
         if not quality_result.passed:
             # Loop back with fix info
@@ -224,10 +238,10 @@ class AgenticLoop:
 
         iteration.quality_passed = True
 
-        # Phase 4: Manager updates
+        # Phase 5: Manager updates
         self._run_manager(state, config)
 
-        # Phase 5: DoD Check
+        # Phase 6: DoD Check
         task_complete = self._run_dod_check(state, config)
         if task_complete:
             self._state_manager.mark_completed(state)
@@ -287,6 +301,132 @@ class AgenticLoop:
                 status=ResultStatus.FAILURE,
                 error=result.error,
             )
+
+    def _run_test_critique(
+        self,
+        state: ExecutionState,
+        config: LoopConfig,
+        impl_result: SubagentResult,
+    ) -> TestCritiqueResult:
+        """Run test critique agent to analyze test quality before QA.
+
+        This phase detects hollow tests that would give false confidence.
+        If tests are hollow (score D or F), QA should not run.
+        """
+        self._state_manager.update_phase(state, LoopPhase.TEST_CRITIQUE)
+        log_phase_start("Test Critique", config.task_id)
+        self._hooks.trigger("test_critique_start", state=state)
+
+        agent_name = "execution-test-critique"
+        agent_path = self._get_agent_path("execution_test_critique")
+        runner = self._get_runner_for_agent(agent_name)
+
+        if not agent_path.exists():
+            logger.warning(f"Test critique agent not found at {agent_path}, skipping")
+            self._state_manager.complete_phase(state, LoopPhase.TEST_CRITIQUE)
+            return TestCritiqueResult(
+                status=ResultStatus.SUCCESS,
+                passed=True,
+                test_quality_score="B",
+                summary="Test critique agent not configured, skipping",
+            )
+
+        # Extract files from implementation output for focused analysis
+        files_changed = []
+        files_added = []
+        if impl_result.structured_output:
+            files_changed = impl_result.structured_output.get("files_changed", [])
+            files_added = impl_result.structured_output.get("files_added", [])
+
+        context = {
+            "task_id": config.task_id,
+            "task_path": str(config.task_path),
+            "files_changed": files_changed,
+            "files_added": files_added,
+            "iteration": state.current_iteration,
+        }
+
+        prompt = self._build_test_critique_prompt(state, config, files_changed + files_added)
+        log_agent_prompt("Test Critique", prompt)
+
+        result = runner.run_agent(agent_path, prompt, context)
+
+        if result.success and result.structured_output:
+            critique_passed = result.structured_output.get("critique_passed", True)
+            score = result.structured_output.get("test_quality_score", "C")
+            fix_info = result.structured_output.get("fix_info") if not critique_passed else None
+
+            if critique_passed:
+                log_phase_complete("Test Critique", f"Score: {score}")
+                self._state_manager.complete_phase(state, LoopPhase.TEST_CRITIQUE)
+            else:
+                log_phase_failed("Test Critique", f"Score: {score} - tests are hollow")
+                state.record_step(
+                    LoopPhase.TEST_CRITIQUE,
+                    StepStatus.FAILED,
+                    error=fix_info or "Test quality check failed",
+                )
+                self._state_manager.save(state)
+
+            return TestCritiqueResult(
+                status=ResultStatus.SUCCESS if critique_passed else ResultStatus.FAILURE,
+                passed=critique_passed,
+                test_quality_score=score,
+                tests_analyzed=result.structured_output.get("tests_analyzed", 0),
+                hollow_tests=result.structured_output.get("hollow_tests", 0),
+                issues=result.structured_output.get("issues", []),
+                summary=result.structured_output.get("summary", ""),
+                fix_info=fix_info,
+            )
+        else:
+            # Agent failed - don't block, but warn
+            logger.warning(f"Test critique agent failed: {result.error}, proceeding")
+            self._state_manager.complete_phase(state, LoopPhase.TEST_CRITIQUE)
+            return TestCritiqueResult(
+                status=ResultStatus.SUCCESS,
+                passed=True,
+                test_quality_score="C",
+                summary=f"Agent error: {result.error}, proceeding with caution",
+            )
+
+    def _build_test_critique_prompt(
+        self,
+        state: ExecutionState,
+        config: LoopConfig,
+        files: list[str],
+    ) -> str:
+        """Build the prompt for the test critique agent."""
+        # Filter to only test files
+        test_files = [f for f in files if "test" in f.lower() or f.endswith("_test.py")]
+
+        parts = [
+            f"Analyze test quality for task: {config.task_id}",
+            f"Task path: {config.task_path}",
+            f"Iteration: {state.current_iteration}",
+            "",
+        ]
+
+        if test_files:
+            parts.append("Test files to analyze (from this iteration):")
+            for f in test_files:
+                parts.append(f"  - {f}")
+        else:
+            parts.append("No specific test files identified. Search for test files in the project.")
+
+        parts.extend([
+            "",
+            "Analyze tests for hollow patterns:",
+            "- Over-mocking (>3 mocks per test)",
+            "- Mocking the System Under Test",
+            "- Placeholder tests (pass, ..., assert True)",
+            "- Assertions that only check mock calls, not outcomes",
+            "",
+            "Score A/B/C = proceed, D/F = block QA (tests are hollow)",
+            "",
+            'Return JSON: {"critique_passed": true/false, "test_quality_score": "A-F", "fix_info": "..."}',
+        ])
+
+        return "\n".join(parts)
 
     def _run_qa(
         self,
@@ -477,27 +617,35 @@ class AgenticLoop:
         agent_path = self._get_agent_path("execution_manager")
         runner = self._get_runner_for_agent(agent_name)
 
-        if agent_path.exists():
-            context = {
-                "task_id": config.task_id,
-                "task_path": str(config.task_path),
-                "iteration": state.current_iteration,
-            }
+        if not agent_path.exists():
+            logger.warning(f"Manager agent not found at {agent_path}, skipping")
+            self._state_manager.complete_phase(state, LoopPhase.MANAGER)
+            return
 
-            prompt = "Update the task status based on the completed implementation iteration."
-            log_agent_prompt("Manager", prompt)
+        context = {
+            "task_id": config.task_id,
+            "task_path": str(config.task_path),
+            "iteration": state.current_iteration,
+        }
 
-            result = runner.run_agent(agent_path, prompt, context)
+        prompt = self._build_manager_prompt(state, config)
+        log_agent_prompt("Manager", prompt)
 
-            if result.success:
-                log_phase_complete("Manager")
-            else:
-                log_phase_failed("Manager", result.error or "Unknown error")
+        result = runner.run_agent(agent_path, prompt, context)
+
+        if result.success:
+            log_phase_complete("Manager")
+        else:
+            log_phase_failed("Manager", result.error or "Unknown error")
 
         self._state_manager.complete_phase(state, LoopPhase.MANAGER)
 
     def _run_dod_check(self, state: ExecutionState, config: LoopConfig) -> bool:
-        """Run the DoD subagent to check if the task is complete."""
+        """Run the DoD subagent to check if the task is complete.
+
+        This is a CRITICAL gate - the agent MUST actually verify all user stories
+        and acceptance criteria are met. No auto-completion fallbacks.
+        """
         self._state_manager.update_phase(state, LoopPhase.DOD_CHECK)
         log_phase_start("DoD Check", config.task_id)
         self._hooks.trigger("dod_check_start", state=state)
@@ -506,34 +654,43 @@ class AgenticLoop:
         agent_path = self._get_agent_path("execution_dod")
         runner = self._get_runner_for_agent(agent_name)
 
-        if agent_path.exists():
-            context = {
-                "task_id": config.task_id,
-                "task_path": str(config.task_path),
-                "iterations_completed": state.current_iteration,
-            }
+        if not agent_path.exists():
+            logger.error(f"DoD agent not found at {agent_path}")
+            log_phase_failed("DoD Check", "DoD agent not found")
+            # Don't auto-complete - this is a configuration error
+            return False
 
-            prompt = "Check if all task requirements have been satisfied and the task is complete."
-            log_agent_prompt("DoD", prompt)
+        context = {
+            "task_id": config.task_id,
+            "task_path": str(config.task_path),
+            "iterations_completed": state.current_iteration,
+        }
 
-            result = runner.run_agent(agent_path, prompt, context)
+        prompt = self._build_dod_prompt(state, config)
+        log_agent_prompt("DoD", prompt)
 
-            if result.success:
-                task_complete = bool(
-                    result.structured_output.get("task_complete", False)
-                    if result.structured_output
-                    else False
-                )
-                status = "complete" if task_complete else "incomplete"
+        result = runner.run_agent(agent_path, prompt, context)
+
+        if result.success and result.structured_output:
+            task_complete = bool(result.structured_output.get("task_complete", False))
+            status = "complete" if task_complete else "incomplete"
+            remaining = result.structured_output.get("remaining_items", [])
+
+            if task_complete:
                 log_phase_complete("DoD Check", f"Task status: {status}")
-                return task_complete
             else:
-                log_phase_failed("DoD Check", result.error or "Unknown error")
+                remaining_str = ", ".join(remaining[:3]) if remaining else "see agent output"
+                log_phase_complete("DoD Check", f"Task incomplete: {remaining_str}")
 
-        # Default: complete after one successful iteration
-        log_phase_complete("DoD Check", "Default: marking complete after iteration")
-        self._state_manager.complete_phase(state, LoopPhase.DOD_CHECK)
-        return True
+            self._state_manager.complete_phase(state, LoopPhase.DOD_CHECK)
+            return task_complete
+        else:
+            # Agent failed or didn't return structured output
+            error_msg = result.error or "No structured output from DoD agent"
+            log_phase_failed("DoD Check", error_msg)
+            logger.warning("DoD agent did not return structured output, continuing loop")
+            # Don't auto-complete - require explicit verification
+            return False
 
     def _finalize(self, state: ExecutionState) -> None:
         """Finalize the loop execution."""
@@ -562,12 +719,8 @@ class AgenticLoop:
             parts.append(f"\nPrevious iteration feedback:\n{state.context['fix_info']}")
 
         parts.append("\nRead the task artifacts and implement according to the plan.")
-        parts.append(
-            "\n**IMPORTANT**: After implementation, output a JSON block with files_changed:"
-        )
-        parts.append("```json")
-        parts.append('{"files_changed": ["path/to/file.py"], "files_added": [], "summary": "..."}')
-        parts.append("```")
+        # NOTE: File changes are now automatically extracted from Claude Code's
+        # tool_use_result metadata, so we don't ask the LLM to self-report them.
 
         return "\n".join(parts)
 
@@ -593,6 +746,65 @@ class AgenticLoop:
         parts.append(
             "\nReturn a JSON with: {\"dod_achieved\": true/false, \"fix_info\": \"...\" if not achieved}"
         )
+
+        return "\n".join(parts)
+
+    def _build_manager_prompt(
+        self,
+        state: ExecutionState,
+        config: LoopConfig,
+    ) -> str:
+        """Build the prompt for the manager agent."""
+        parts = [
+            f"Update task artifacts after iteration {state.current_iteration} for: {config.task_id}",
+            f"Task path: {config.task_path}",
+            "",
+            "Your job:",
+            "1. Read the user stories at {task_path}/user-stories/",
+            "2. Read the implementation plan at {task_path}/implementation-plan/",
+            "3. Based on what was implemented this iteration, update:",
+            "   - Mark completed acceptance criteria with [x]",
+            "   - Update user story status if all criteria are met",
+            "   - Mark completed phases in the implementation plan",
+            "",
+            "Only mark items as done that are actually implemented.",
+            "Be conservative - if unsure, leave it as pending.",
+            "",
+            'Return JSON: {"status": "success", "updates_made": [...], "items_completed": [...]}',
+        ]
+
+        return "\n".join(parts)
+
+    def _build_dod_prompt(
+        self,
+        state: ExecutionState,
+        config: LoopConfig,
+    ) -> str:
+        """Build the prompt for the DoD agent."""
+        parts = [
+            f"Verify if task is COMPLETE: {config.task_id}",
+            f"Task path: {config.task_path}",
+            f"Iterations completed: {state.current_iteration}",
+            "",
+            "CRITICAL: You must actually read and verify the task artifacts.",
+            "",
+            "Steps:",
+            "1. Read task-description.md for the overall goals",
+            "2. Read ALL user stories in user-stories/",
+            "   - Count total acceptance criteria",
+            "   - Count how many are marked [x] done",
+            "3. Read implementation-plan/ phases",
+            "   - Check if all phases are marked complete",
+            "",
+            "Task is COMPLETE only if:",
+            "- ALL user stories have status 'Done'",
+            "- ALL acceptance criteria are checked [x]",
+            "- ALL implementation phases are complete",
+            "",
+            "Task is NOT complete if ANY work remains.",
+            "",
+            'Return JSON: {"task_complete": true/false, "remaining_items": [...], "reasoning": "..."}',
+        ]
 
         return "\n".join(parts)
 
