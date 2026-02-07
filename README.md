@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.jpg" alt="Sahaidachny" width="200">
+  <img src="assets/logo.png" alt="Sahaidachny" width="180">
 </p>
 
 <h1 align="center">Sahaidachny</h1>
