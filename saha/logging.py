@@ -24,10 +24,10 @@ SAHA_THEME = Theme({
     "iteration": "bold bright_yellow",
     "iteration.border": "bright_yellow",
     "task": "bold bright_cyan",
-    # Tool calls
-    "tool": "bright_cyan",
-    "tool.name": "bold bright_yellow",
-    "tool.detail": "white",
+    # Tool calls - subdued, supporting information
+    "tool": "dim",
+    "tool.name": "cyan",
+    "tool.detail": "dim",
     # Status indicators
     "success": "bold bright_green",
     "failure": "bold bright_red",
@@ -148,7 +148,7 @@ def log_iteration_complete(iteration: int, dod_achieved: bool, quality_passed: b
 
 def log_tool_call(tool_name: str, details: str = "") -> None:
     """Log a tool being called."""
-    msg = f"[tool.name]\\[{tool_name}][/tool.name]"
+    msg = f"  [tool.name]{tool_name}[/tool.name]"
     if details:
         msg += f" [tool.detail]{details[:80]}{'...' if len(details) > 80 else ''}[/tool.detail]"
     console.print(msg)

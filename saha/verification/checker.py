@@ -92,6 +92,7 @@ class TaskVerifier:
         self._check_task_description()
         self._check_user_stories()
         self._check_test_specs()
+        self._check_api_contracts()
         self._check_implementation_plan()
         self._check_design_decisions()
         self._check_story_phase_assignment()
@@ -100,6 +101,7 @@ class TaskVerifier:
         self._check_task_description_content()
         self._check_user_stories_content()
         self._check_test_specs_content()
+        self._check_api_contracts_content()
         self._check_implementation_plan_content()
 
         status = self._determine_status()
@@ -225,6 +227,46 @@ class TaskVerifier:
                 name="test-specs",
                 passed=True,
                 message=f"{len(specs)} test spec file(s) found",
+            )
+        )
+
+    def _check_api_contracts(self) -> None:
+        """Check for API contracts (required for TDD interface definition).
+
+        API contracts define the interfaces (Pydantic models, protocols) that
+        the implementation agent creates in the TDD workflow.
+        """
+        contracts_dir = self.task_path / "api-contracts"
+
+        if not contracts_dir.exists():
+            self.checks.append(
+                CheckResult(
+                    name="api-contracts",
+                    passed=False,
+                    message="api-contracts/ directory not found (needed for TDD interface definition)",
+                    is_warning=True,  # Warning because some tasks may not need full TDD
+                )
+            )
+            return
+
+        # Check for .md files in api-contracts/ excluding README
+        contracts = [f for f in contracts_dir.glob("*.md") if f.name.lower() != "readme.md"]
+        if not contracts:
+            self.checks.append(
+                CheckResult(
+                    name="api-contracts",
+                    passed=False,
+                    message="No API contract files found (needed for TDD interface definition)",
+                    is_warning=True,
+                )
+            )
+            return
+
+        self.checks.append(
+            CheckResult(
+                name="api-contracts",
+                passed=True,
+                message=f"{len(contracts)} API contract(s) found",
             )
         )
 
@@ -456,7 +498,15 @@ class TaskVerifier:
             )
 
     def _check_test_specs_content(self) -> None:
-        """Check test specs content quality."""
+        """Check test specs content quality.
+
+        Test specs for TDD should have:
+        - Test case descriptions with inputs and expected outputs
+        - Example code snippets as implementation hints (this is OK!)
+        - Parameterized test tables
+
+        They should NOT be complete test implementations (many test functions).
+        """
         specs_dir = self.task_path / "test-specs"
         if not specs_dir.exists():
             return
@@ -471,16 +521,26 @@ class TaskVerifier:
             content = spec_file.read_text()
             spec_name = spec_file.stem
 
-            # Check for actual test code (should describe what to test, not implementation)
-            if PYTHON_TEST_PATTERN.search(content):
-                issues.append(f"{spec_name}: contains test implementation code")
+            # Count test function definitions - a few examples are fine,
+            # but a complete test module (>10 test functions) is too much
+            test_func_count = len(re.findall(r"def test_\w+", content))
+            if test_func_count > 10:
+                issues.append(
+                    f"{spec_name}: has {test_func_count} test functions - "
+                    "specs should describe tests, not be complete implementations"
+                )
 
-            # Check for code blocks that look like test implementations
-            code_blocks = CODE_BLOCK_PATTERN.findall(content)
-            for block in code_blocks:
-                if PYTHON_TEST_PATTERN.search(block):
-                    issues.append(f"{spec_name}: has test code in code blocks - should describe, not implement")
-                    break
+            # Check for test case descriptions (TC-UNIT-XXX, TC-INT-XXX, etc.)
+            has_test_cases = bool(re.search(r"TC-\w+-\d+", content))
+
+            # Check for expected/input descriptions
+            has_expectations = any(
+                term in content.lower()
+                for term in ["expected", "input", "output", "should", "returns"]
+            )
+
+            if not has_test_cases and not has_expectations:
+                issues.append(f"{spec_name}: missing test case descriptions (TC-XXX-NNN) or expectations")
 
         if issues:
             display_issues = issues[:3]
@@ -498,7 +558,68 @@ class TaskVerifier:
                 CheckResult(
                     name="test-specs-content",
                     passed=True,
-                    message="Test specs describe tests without implementation code",
+                    message="Test specs have proper test case descriptions",
+                )
+            )
+
+    def _check_api_contracts_content(self) -> None:
+        """Check API contracts content quality for TDD interface definition."""
+        contracts_dir = self.task_path / "api-contracts"
+        if not contracts_dir.exists():
+            return
+
+        contracts = [f for f in contracts_dir.glob("*.md") if f.name.lower() != "readme.md"]
+        if not contracts:
+            return
+
+        issues: list[str] = []
+
+        for contract_file in contracts:
+            content = contract_file.read_text()
+            contract_name = contract_file.stem
+            content_lower = content.lower()
+
+            # Check for data model definitions (needed for Pydantic interfaces)
+            has_data_models = any(
+                term in content_lower
+                for term in ["data model", "schema", "field", "type:", "request", "response"]
+            )
+            if not has_data_models:
+                issues.append(f"{contract_name}: missing data model/schema definitions")
+
+            # Check for JSON/code blocks with schema examples
+            code_blocks = CODE_BLOCK_PATTERN.findall(content)
+            has_json_schema = any(
+                "json" in block.lower() or "{" in block
+                for block in code_blocks
+            )
+            if not has_json_schema:
+                issues.append(f"{contract_name}: no JSON schema examples found")
+
+            # Check for field type annotations
+            has_field_types = bool(
+                re.search(r"(string|number|boolean|array|object|datetime|uuid|int|float)", content_lower)
+            )
+            if not has_field_types:
+                issues.append(f"{contract_name}: missing field type annotations")
+
+        if issues:
+            display_issues = issues[:3]
+            more = f" (+{len(issues) - 3} more)" if len(issues) > 3 else ""
+            self.checks.append(
+                CheckResult(
+                    name="api-contracts-content",
+                    passed=False,
+                    message=f"Contract issues: {'; '.join(display_issues)}{more}",
+                    is_warning=True,
+                )
+            )
+        else:
+            self.checks.append(
+                CheckResult(
+                    name="api-contracts-content",
+                    passed=True,
+                    message="API contracts have proper schema definitions",
                 )
             )
 

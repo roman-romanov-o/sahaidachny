@@ -16,14 +16,17 @@ from saha.runners.base import Runner, RunnerResult
 
 logger = logging.getLogger(__name__)
 
-# Cossack-inspired theme for streaming output: visible on light/dark terminals
+# Content-first theme: model text is the star, tools are supporting context
 _STREAM_THEME = Theme({
-    "model": "bright_white",  # Model's text responses - high visibility
-    "model.indicator": "bold bright_blue",  # ▸ indicator
-    "tool": "white",  # Tool details - readable
-    "tool.name": "bold bright_yellow",  # [Read] - prominent yellow
-    "tool.warn": "bright_yellow",  # Warnings from tool output
-    "error": "bold bright_red",  # Errors - attention
+    # Model output - the main content, clean and readable
+    "model": "white",
+    "model.indicator": "dim cyan",  # Subtle transition marker
+    # Tools - subdued metadata, not competing with content
+    "tool": "dim",
+    "tool.name": "cyan",  # Visible but not screaming
+    "tool.warn": "yellow",
+    # Errors still need attention
+    "error": "bold red",
 })
 
 # Console for streaming output (separate from logging console)
@@ -382,9 +385,9 @@ class ClaudeRunner(Runner):
                         tool_state["current_tool"] = block.get("name", "unknown")
                         tool_state["input_json"] = ""
                     elif block.get("type") == "text":
-                        # Starting text block - show indicator if coming from tools
+                        # Starting text block - subtle separator if coming from tools
                         if tool_state.get("last_was_tool"):
-                            _stream_console.print("\n[model.indicator]▸[/model.indicator] ", end="")
+                            _stream_console.print()  # Just a clean newline
                         tool_state["text_buffer"] = ""
 
             elif inner_type == "content_block_delta":
@@ -434,11 +437,11 @@ class ClaudeRunner(Runner):
     def _print_tool_call(self, tool_name: str, input_json: str) -> None:
         """Print a formatted tool call with relevant details."""
         details = self._extract_tool_details(tool_name, input_json)
-        # Format: [ToolName] details - tool name in yellow, rest dim
+        # Format: subdued tool info - content is the star, tools are metadata
         if details:
-            _stream_console.print(f"  [tool.name]\\[{tool_name}][/tool.name] [tool]{details}[/tool]")
+            _stream_console.print(f"  [tool.name]{tool_name}[/tool.name] [tool]{details}[/tool]")
         else:
-            _stream_console.print(f"  [tool.name]\\[{tool_name}][/tool.name]")
+            _stream_console.print(f"  [tool.name]{tool_name}[/tool.name]")
 
     def _extract_tool_details(self, tool_name: str, input_json: str) -> str:
         """Extract human-readable details from tool input JSON."""

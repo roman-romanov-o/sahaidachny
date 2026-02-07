@@ -17,6 +17,7 @@ import typer
 
 from saha import __version__
 from saha.commands.common import setup_logging
+from saha.commands.plugin import sync_claude_artifacts
 from saha.config.settings import Settings
 from saha.context import clear_current_task, get_current_task, resolve_task_id, set_current_task
 from saha.models.state import ExecutionState
@@ -24,7 +25,12 @@ from saha.orchestrator.factory import create_orchestrator
 from saha.orchestrator.loop import LoopConfig
 from saha.orchestrator.state import StateManager
 from saha.tools.registry import create_default_registry
-from saha.verification import TaskVerifier, VerificationResult, VerificationStatus
+from saha.verification import (
+    TaskVerifier,
+    VerificationResult,
+    VerificationStatus,
+    cleanup_template_artifacts,
+)
 
 # Constants
 DEFAULT_MAX_ITERATIONS = 5
@@ -73,6 +79,11 @@ def _run_command(
     """Implementation of the run command logic."""
     setup_logging(verbose)
 
+    # Sync Claude artifacts (agents, etc.) before execution
+    sync_result = sync_claude_artifacts()
+    if sync_result.total_synced > 0:
+        typer.echo(f"Synced {sync_result.total_synced} missing agent(s): {', '.join(sync_result.agents_synced)}")
+
     settings = _build_run_settings(verbose, dry_run, qa_runner)
     resolved_path = _resolve_and_validate_task_path(task_id, task_path, settings)
     enabled_tools = tools.split(",") if tools else None
@@ -83,6 +94,11 @@ def _run_command(
         if not verification_result.can_proceed():
             typer.echo("\nVerification failed. Use --skip-verify to bypass.", err=True)
             raise typer.Exit(1)
+
+        # Clean up unfilled template artifacts after successful verification
+        cleanup_result = cleanup_template_artifacts(resolved_path)
+        if cleanup_result.total_removed > 0:
+            typer.echo(f"Cleaned up {cleanup_result.total_removed} unfilled template file(s)")
 
     _display_run_info(task_id, resolved_path, max_iterations)
 

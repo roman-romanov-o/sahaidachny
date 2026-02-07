@@ -708,17 +708,54 @@ class AgenticLoop:
         state: ExecutionState,
         config: LoopConfig,
     ) -> str:
-        """Build the prompt for the implementation agent."""
+        """Build the prompt for the implementation agent.
+
+        Provides TDD-focused context to guide the agent through:
+        1. Interface definition (from API contracts)
+        2. Test writing (from test specs) - RED
+        3. Implementation - GREEN
+        """
         parts = [
-            f"Implement the next part of task: {config.task_id}",
+            f"Implement task: {config.task_id}",
             f"Task path: {config.task_path}",
-            f"This is iteration {state.current_iteration}.",
+            f"Iteration: {state.current_iteration}",
+            "",
         ]
 
         if state.context.get("fix_info"):
-            parts.append(f"\nPrevious iteration feedback:\n{state.context['fix_info']}")
+            # Retry iteration - focus on fixing specific issues
+            parts.extend([
+                "## Fix Mode",
+                "",
+                "Previous iteration failed. Focus on fixing these issues:",
+                "",
+                state.context["fix_info"],
+                "",
+                "Run tests after each fix to verify progress.",
+            ])
+        else:
+            # First iteration - full TDD cycle
+            parts.extend([
+                "## TDD Development Cycle",
+                "",
+                "Follow the TDD approach:",
+                "",
+                "### Phase 1: Interfaces",
+                f"- Read API contracts at `{config.task_path}/api-contracts/`",
+                "- Create Pydantic models and Protocol classes for the contracts",
+                "",
+                "### Phase 2: Tests (Red)",
+                f"- Read test specs at `{config.task_path}/test-specs/`",
+                "- Write pytest tests based on the specs",
+                "- Tests WILL fail initially (this is expected)",
+                "",
+                "### Phase 3: Implementation (Green)",
+                "- Implement code to make all tests pass",
+                "- Run tests after implementation to verify",
+                "",
+                "Read the task artifacts and follow TDD strictly.",
+            ])
 
-        parts.append("\nRead the task artifacts and implement according to the plan.")
         # NOTE: File changes are now automatically extracted from Claude Code's
         # tool_use_result metadata, so we don't ask the LLM to self-report them.
 

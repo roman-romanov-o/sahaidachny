@@ -5,6 +5,7 @@ This module contains commands for managing the Claude Code plugin:
 - claude: Launch Claude Code with Sahaidachny plugin configured
 """
 
+import logging
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,9 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 def _find_plugin_path() -> Path | None:
@@ -41,6 +45,77 @@ def _find_plugin_path() -> Path | None:
             return candidate
 
     return None
+
+
+class SyncResult(BaseModel):
+    """Result of syncing Claude artifacts."""
+
+    agents_synced: list[str]
+    total_synced: int
+    plugin_path: str | None
+
+
+# Required execution agents that must exist for the loop to run
+REQUIRED_EXECUTION_AGENTS = [
+    "execution-implementer.md",
+    "execution-qa.md",
+    "execution-code-quality.md",
+    "execution-dod.md",
+    "execution-manager.md",
+    "execution-test-critique.md",
+]
+
+# Optional agent variants
+OPTIONAL_EXECUTION_AGENTS = [
+    "execution-qa-playwright.md",
+]
+
+
+def sync_claude_artifacts(claude_dir: Path | None = None) -> SyncResult:
+    """Ensure all required Claude artifacts exist in the project.
+
+    Checks for required execution agents in .claude/agents/ and copies
+    any missing ones from the plugin directory.
+
+    Args:
+        claude_dir: Path to .claude directory. Defaults to .claude in cwd.
+
+    Returns:
+        SyncResult with list of synced files.
+    """
+    if claude_dir is None:
+        claude_dir = Path.cwd() / ".claude"
+
+    plugin_path = _find_plugin_path()
+    if plugin_path is None:
+        logger.warning("Plugin directory not found, cannot sync agents")
+        return SyncResult(agents_synced=[], total_synced=0, plugin_path=None)
+
+    agents_dir = claude_dir / "agents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+
+    plugin_agents = plugin_path / "agents"
+    if not plugin_agents.exists():
+        logger.warning(f"Plugin agents directory not found: {plugin_agents}")
+        return SyncResult(agents_synced=[], total_synced=0, plugin_path=str(plugin_path))
+
+    synced: list[str] = []
+
+    # Sync required agents
+    for agent_name in REQUIRED_EXECUTION_AGENTS + OPTIONAL_EXECUTION_AGENTS:
+        target = agents_dir / agent_name
+        source = plugin_agents / agent_name
+
+        if not target.exists() and source.exists():
+            shutil.copy2(source, target)
+            synced.append(agent_name)
+            logger.info(f"Synced agent: {agent_name}")
+
+    return SyncResult(
+        agents_synced=synced,
+        total_synced=len(synced),
+        plugin_path=str(plugin_path),
+    )
 
 
 def _show_plugin_contents(plugin_path: Path) -> None:

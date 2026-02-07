@@ -18,14 +18,42 @@ class ImplementationStatus(str, Enum):
     BLOCKED = "blocked"
 
 
+class TDDPhases(BaseModel):
+    """TDD progress tracking for implementation agent."""
+
+    interfaces_created: list[str] | None = Field(
+        default=None,
+        description="Names of interfaces/models created (e.g., UserCreateRequest, UserResponse)"
+    )
+    tests_written: int | None = Field(
+        default=None,
+        description="Number of test cases written from test specs"
+    )
+    tests_passing: int | None = Field(
+        default=None,
+        description="Number of tests currently passing"
+    )
+    tests_failing: int | None = Field(
+        default=None,
+        description="Number of tests currently failing (expected in Red phase)"
+    )
+
+
 class ImplementationOutput(BaseModel):
-    """Output schema for execution-implementer agent."""
+    """Output schema for execution-implementer agent.
+
+    Supports TDD workflow with optional tdd_phases tracking.
+    """
 
     status: ImplementationStatus = Field(
         description="Overall implementation status"
     )
     summary: str = Field(
-        description="Brief description of changes made (1-2 sentences)"
+        description="Brief description of TDD work done (1-2 sentences)"
+    )
+    tdd_phases: TDDPhases | None = Field(
+        default=None,
+        description="TDD progress: interfaces created, tests written/passing"
     )
     notes: str | None = Field(
         default=None,
