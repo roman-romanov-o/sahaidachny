@@ -42,11 +42,12 @@ class NtfyHook(Hook):
 
     @property
     def events(self) -> list[HookEvent]:
-        """Only trigger on completion/failure events."""
+        """Only trigger on completion/failure/stop events."""
         return [
             HookEvent.LOOP_COMPLETE,
             HookEvent.LOOP_FAILED,
             HookEvent.LOOP_ERROR,
+            HookEvent.LOOP_STOPPED,
         ]
 
     def execute(self, event: HookEvent, **kwargs: Any) -> None:
@@ -97,6 +98,14 @@ class NtfyHook(Hook):
                 f"An error occurred after {iterations} iteration(s). Check logs for details.",
                 "urgent",
                 ["warning", "rotating_light"],
+            )
+
+        elif event == HookEvent.LOOP_STOPPED:
+            return (
+                f"Task Stopped: {task_id}",
+                summary or f"Task {task_id} was stopped after {iterations} iteration(s).",
+                "default",
+                ["pause_button", "warning"],
             )
 
         return (

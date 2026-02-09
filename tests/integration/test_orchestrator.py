@@ -226,6 +226,7 @@ assert "qa" in phases
 assert "code_quality" in phases
 assert "manager" in phases
 assert "dod_check" in phases
+assert "stopped" in phases
 assert "completed" in phases
 assert "failed" in phases
 

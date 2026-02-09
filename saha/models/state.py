@@ -18,6 +18,7 @@ class LoopPhase(str, Enum):
     CODE_QUALITY = "code_quality"
     MANAGER = "manager"
     DOD_CHECK = "dod_check"
+    STOPPED = "stopped"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -82,6 +83,7 @@ class ExecutionState(BaseModel):
         """Check if the loop is currently running."""
         return self.current_phase not in (
             LoopPhase.IDLE,
+            LoopPhase.STOPPED,
             LoopPhase.COMPLETED,
             LoopPhase.FAILED,
         )

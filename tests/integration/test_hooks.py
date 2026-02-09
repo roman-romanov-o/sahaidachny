@@ -24,6 +24,7 @@ assert "loop_start" in events
 assert "loop_complete" in events
 assert "loop_failed" in events
 assert "loop_error" in events
+assert "loop_stopped" in events
 assert "iteration_start" in events
 assert "iteration_complete" in events
 assert "implementation_start" in events
@@ -230,7 +231,7 @@ print("Ntfy notification building works!")
         assert "Ntfy notification building works!" in output
 
     def test_ntfy_hook_events_filter(self, bootstrapped_container):
-        """Test that ntfy hook only triggers on completion events."""
+        """Test that ntfy hook only triggers on completion/failure/stop events."""
         python_code = '''
 from saha.hooks.notification import NtfyHook
 from saha.hooks.base import HookEvent
@@ -243,6 +244,7 @@ print(f"Ntfy hook events: {[e.value for e in events]}")
 assert HookEvent.LOOP_COMPLETE in events
 assert HookEvent.LOOP_FAILED in events
 assert HookEvent.LOOP_ERROR in events
+assert HookEvent.LOOP_STOPPED in events
 
 assert HookEvent.ITERATION_START not in events
 assert HookEvent.IMPLEMENTATION_START not in events

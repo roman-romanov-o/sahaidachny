@@ -202,7 +202,7 @@ After implementation, you MUST return a structured JSON response:
 }
 ```
 
-**Note**: File changes (files_changed, files_added) are automatically tracked by the orchestrator from Claude Code's tool metadata - no need to list them manually.
+**Note**: File changes (files_changed, files_added) are automatically tracked by the orchestrator (via runner metadata or filesystem diff) - no need to list them manually.
 
 ## Context Variables
 

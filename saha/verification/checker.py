@@ -73,8 +73,8 @@ class VerificationResult(BaseModel):
         return [c for c in self.checks if c.passed]
 
     def can_proceed(self) -> bool:
-        """Check if execution can proceed (no errors, warnings are OK)."""
-        return len(self.errors) == 0
+        """Check if execution can proceed based on errors and warnings."""
+        return not self.errors and not self.warnings
 
 
 class TaskVerifier:

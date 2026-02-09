@@ -261,6 +261,7 @@ saha/
 │   ├── base.py              # Runner abstract base class
 │   ├── registry.py          # Runner factory registry
 │   ├── claude.py            # Claude Code CLI runner
+│   ├── codex.py             # Codex CLI runner
 │   └── gemini.py            # Gemini CLI runner
 ├── models/
 │   ├── __init__.py
@@ -367,7 +368,7 @@ AgenticLoop.run()
 
 ### Execution Agents
 
-Execution agents are Claude Code subagents invoked by the orchestrator.
+Execution agents are runner-agnostic agent specs invoked by the orchestrator (Claude Code, Codex, or Gemini).
 
 **Location:** `claude_plugin/agents/` (also symlinked to `.claude/agents/`)
 
@@ -469,6 +470,7 @@ class Runner(ABC):
 | Runner | File | Backend |
 |--------|------|---------|
 | ClaudeRunner | `saha/runners/claude.py:12-206` | Claude Code CLI |
+| CodexRunner | `saha/runners/codex.py` | Codex CLI |
 | GeminiRunner | `saha/runners/gemini.py` | Gemini CLI |
 | MockRunner | `saha/runners/claude.py:209-266` | Testing mock |
 
@@ -494,6 +496,17 @@ cmd = [
     "--prompt", prompt,
 ]
 ```
+
+#### CodexRunner
+
+**File:** `saha/runners/codex.py`
+
+Key characteristics:
+
+1. Runs `codex exec` non-interactively and captures the last assistant message via `--output-last-message`.
+2. Embeds the agent spec markdown (minus frontmatter) into the prompt as a system prelude.
+3. Loads any referenced skills from `.claude/skills` or `claude_plugin/skills` and appends them to the prompt.
+4. Tracks file changes by taking a filesystem snapshot before/after the run (since Codex CLI does not emit tool metadata).
 
 #### Runner Registry
 
@@ -720,8 +733,12 @@ class Settings(BaseSettings):
     state_dir: Path = Path(".sahaidachny")
     task_base_path: Path = Path("docs/tasks")
     max_iterations: int = 10
-    runner: Literal["claude", "gemini", "mock"] = "claude"
-    claude_model: str = "claude-sonnet-4-20250514"
+    runner: Literal["claude", "codex", "gemini", "mock"] = "claude"
+    claude_model: str = "claude-sonnet-4-20250929"
+    codex_model: str | None = None
+    codex_sandbox: Literal["read-only", "workspace-write", "danger-full-access"] = "workspace-write"
+    claude_dangerously_skip_permissions: bool = False
+    codex_dangerously_bypass_sandbox: bool = False
     agents_path: Path = Path(".claude/agents")
 
     tools: ToolConfig
@@ -815,6 +832,7 @@ class CodeQualityResult(BaseModel):
 | State Models | `saha/models/state.py:58-119` |
 | Settings | `saha/config/settings.py:97-164` |
 | Claude Runner | `saha/runners/claude.py:12-206` |
+| Codex Runner | `saha/runners/codex.py` |
 
 ### Planning Commands
 

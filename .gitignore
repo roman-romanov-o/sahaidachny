@@ -36,6 +36,7 @@ ENV/
 .mypy_cache/
 .ruff_cache/
 .complexipy_cache/
+.saha_logs/
 .coverage
 htmlcov/
 

@@ -31,7 +31,7 @@ class ToolConfig(BaseSettings):
 class AgentRunnerConfig(BaseModel):
     """Configuration for which runner an agent should use."""
 
-    runner: Literal["claude", "gemini", "mock"] = "claude"
+    runner: Literal["claude", "codex", "gemini", "mock"] = "claude"
     variant: str | None = None  # Agent variant (e.g., "playwright" for execution-qa-playwright)
     model: str | None = None  # Override model for this agent
     timeout: int = 300
@@ -42,6 +42,7 @@ class AgentsConfig(BaseSettings):
 
     Allows specifying different runners for different agents:
     - Use Claude for implementation (tool-heavy)
+    - Use Codex for implementation or QA (agentic CLI)
     - Use Gemini for QA (can be cheaper, good for verification)
     - Use Playwright-enabled variant only when UI testing needed
     """
@@ -49,7 +50,7 @@ class AgentsConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="SAHA_AGENT_")
 
     # Default configuration for all agents
-    default_runner: Literal["claude", "gemini", "mock"] = "claude"
+    default_runner: Literal["claude", "codex", "gemini", "mock"] = "claude"
 
     # Per-agent overrides
     implementer: AgentRunnerConfig = Field(default_factory=AgentRunnerConfig)
@@ -113,14 +114,18 @@ class Settings(BaseSettings):
     max_iterations: int = 10
     max_retries_per_phase: int = 3
 
-    runner: Literal["claude", "gemini", "mock"] = "claude"
+    runner: Literal["claude", "codex", "gemini", "mock"] = "claude"
     claude_model: str = "claude-sonnet-4-5-20250929"  # Claude Sonnet 4.5
     claude_timeout: int = 300
+    claude_dangerously_skip_permissions: bool = False
+    codex_model: str | None = None
+    codex_sandbox: Literal["read-only", "workspace-write", "danger-full-access"] = "workspace-write"
+    codex_dangerously_bypass_sandbox: bool = False
     gemini_model: str = "gemini-2.5-pro"
     gemini_timeout: int = 300
 
     plugin_path: Path = Path("claude_plugin")
-    agents_path: Path = Path(".claude/agents")  # Native Claude Code agents location
+    agents_path: Path = Path(".claude/agents")  # Agent spec location (Claude Code compatible)
 
     verbose: bool = False
     dry_run: bool = False

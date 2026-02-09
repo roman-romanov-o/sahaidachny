@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.theme import Theme
 
 from saha.runners.base import Runner, RunnerResult
+from saha.runners.usage import normalize_token_usage
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +50,13 @@ class ClaudeRunner(Runner):
         working_dir: Path | None = None,
         allowed_tools: list[str] | None = None,
         stream_output: bool = False,
+        skip_permissions: bool = False,
     ):
         self._model = model
         self._working_dir = working_dir or Path.cwd()
         self._allowed_tools = allowed_tools
         self._stream_output = stream_output
+        self._skip_permissions = skip_permissions
 
     def _extract_file_changes_from_events(
         self,
@@ -164,30 +167,47 @@ class ClaudeRunner(Runner):
         json_cmd.extend(["--output-format", "json"])
 
         try:
-            result = subprocess.run(
+            process = subprocess.Popen(
                 json_cmd,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=timeout,
                 cwd=self._working_dir,
             )
 
-            logger.debug(f"Command exit code: {result.returncode}")
-            logger.debug(f"Command stdout length: {len(result.stdout)}")
-            if result.stderr:
-                logger.debug(f"Command stderr: {result.stderr[:500]}")
+            try:
+                stdout, stderr = process.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                stdout, stderr = process.communicate()
+                return RunnerResult.failure(
+                    f"Command timed out after {timeout} seconds",
+                    exit_code=124,
+                )
+            except KeyboardInterrupt:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                raise
 
-            if result.returncode != 0:
-                logger.warning(f"Claude CLI failed with exit code {result.returncode}: {result.stderr}")
+            logger.debug(f"Command exit code: {process.returncode}")
+            logger.debug(f"Command stdout length: {len(stdout)}")
+            if stderr:
+                logger.debug(f"Command stderr: {stderr[:500]}")
+
+            if process.returncode != 0:
+                logger.warning(f"Claude CLI failed with exit code {process.returncode}: {stderr}")
                 return RunnerResult(
                     success=False,
-                    output=result.stdout,
-                    error=result.stderr or f"Exit code: {result.returncode}",
-                    exit_code=result.returncode,
+                    output=stdout,
+                    error=stderr or f"Exit code: {process.returncode}",
+                    exit_code=process.returncode,
                 )
 
             # Parse JSON events from NDJSON output
-            events = self._parse_ndjson_events(result.stdout)
+            events = self._parse_ndjson_events(stdout)
 
             # Extract text output from events
             text_output = self._extract_text_from_events(events)
@@ -198,6 +218,8 @@ class ClaudeRunner(Runner):
             # Try to parse any structured JSON output from the text
             structured_output = self._try_parse_json(text_output) or {}
 
+            token_usage = self._extract_token_usage_from_events(events)
+
             # Merge file changes from metadata (these override any LLM self-report)
             if files_changed or files_added:
                 structured_output["files_changed"] = files_changed
@@ -207,6 +229,7 @@ class ClaudeRunner(Runner):
             return RunnerResult.success_result(
                 output=text_output,
                 structured_output=structured_output if structured_output else None,
+                token_usage=token_usage,
             )
 
         except subprocess.TimeoutExpired:
@@ -254,6 +277,39 @@ class ClaudeRunner(Runner):
                     text_parts.append(result_text)
         return "\n".join(text_parts)
 
+    def _extract_token_usage_from_events(self, events: list[dict[str, Any]]) -> dict[str, int] | None:
+        """Extract token usage from Claude Code event stream."""
+        raw_candidates: list[dict[str, Any]] = []
+
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+
+            usage = event.get("usage")
+            if isinstance(usage, dict):
+                raw_candidates.append(usage)
+
+            token_usage = event.get("token_usage")
+            if isinstance(token_usage, dict):
+                raw_candidates.append(token_usage)
+
+            for container_key in ("message", "result", "response", "data"):
+                container = event.get(container_key)
+                if not isinstance(container, dict):
+                    continue
+                inner_usage = container.get("usage")
+                if isinstance(inner_usage, dict):
+                    raw_candidates.append(inner_usage)
+                inner_token_usage = container.get("token_usage")
+                if isinstance(inner_token_usage, dict):
+                    raw_candidates.append(inner_token_usage)
+
+        if not raw_candidates:
+            return None
+
+        normalized = normalize_token_usage(raw_candidates[-1])
+        return normalized
+
     def _execute_with_streaming(
         self,
         cmd: list[str],
@@ -277,33 +333,41 @@ class ClaudeRunner(Runner):
             collected_text: list[str] = []
             collected_events: list[dict[str, Any]] = []  # Collect all events for file tracking
             tool_state: dict[str, Any] = {}  # Track current tool call state
-
-            # Stream and parse NDJSON output in real-time
-            if process.stdout:
-                for line in process.stdout:
-                    line = line.strip()
-                    if not line:
-                        continue
-
-                    try:
-                        event = json.loads(line)
-                        # Only handle dict events, skip arrays/primitives
-                        if isinstance(event, dict):
-                            collected_events.append(event)
-                            self._handle_stream_event(event, collected_text, tool_state)
-                    except json.JSONDecodeError:
-                        # Non-JSON line, just print it
-                        print(line)
-
-            # Collect stderr
             stderr = ""
-            if process.stderr:
-                stderr = process.stderr.read()
-                if stderr:
-                    sys.stderr.write(stderr)
-                    sys.stderr.flush()
 
-            process.wait(timeout=timeout)
+            try:
+                # Stream and parse NDJSON output in real-time
+                if process.stdout:
+                    for line in process.stdout:
+                        line = line.strip()
+                        if not line:
+                            continue
+
+                        try:
+                            event = json.loads(line)
+                            # Only handle dict events, skip arrays/primitives
+                            if isinstance(event, dict):
+                                collected_events.append(event)
+                                self._handle_stream_event(event, collected_text, tool_state)
+                        except json.JSONDecodeError:
+                            # Non-JSON line, just print it
+                            print(line)
+
+                # Collect stderr
+                if process.stderr:
+                    stderr = process.stderr.read()
+                    if stderr:
+                        sys.stderr.write(stderr)
+                        sys.stderr.flush()
+
+                process.wait(timeout=timeout)
+            except KeyboardInterrupt:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                raise
 
             # Combine collected text as the output
             full_output = "".join(collected_text)
@@ -328,6 +392,8 @@ class ClaudeRunner(Runner):
             # Try to parse any structured JSON output from the text
             structured_output = self._try_parse_json(full_output) or {}
 
+            token_usage = self._extract_token_usage_from_events(collected_events)
+
             # Merge file changes from metadata (these override any LLM self-report)
             if files_changed or files_added:
                 structured_output["files_changed"] = files_changed
@@ -337,6 +403,7 @@ class ClaudeRunner(Runner):
             return RunnerResult.success_result(
                 output=full_output,
                 structured_output=structured_output if structured_output else None,
+                token_usage=token_usage,
             )
 
         except subprocess.TimeoutExpired:
@@ -533,6 +600,9 @@ class ClaudeRunner(Runner):
             "--model", self._model,
         ]
 
+        if self._skip_permissions:
+            cmd.append("--dangerously-skip-permissions")
+
         if system_prompt:
             cmd.extend(["--system-prompt", system_prompt])
 
@@ -555,6 +625,9 @@ class ClaudeRunner(Runner):
             "--print",  # Print output without interactive mode
             "--agent", agent_name,  # Use native agent
         ]
+
+        if self._skip_permissions:
+            cmd.append("--dangerously-skip-permissions")
 
         # Note: --model is typically set in agent frontmatter, but can override
         # Note: --allowedTools is set in agent frontmatter

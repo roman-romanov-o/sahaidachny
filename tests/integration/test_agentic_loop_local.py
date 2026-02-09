@@ -22,6 +22,7 @@ from saha.hooks.notification import LoggingHook
 from saha.orchestrator.loop import AgenticLoop, LoopConfig
 from saha.orchestrator.state import StateManager
 from saha.runners import IntelligentMockRunner
+from saha.runners.base import Runner, RunnerResult
 from saha.tools import create_default_registry
 
 
@@ -563,3 +564,102 @@ class TestIntelligentMockRunner:
         assert result1.structured_output["dod_achieved"] is False
         assert result2.structured_output["dod_achieved"] is False
         assert result3.structured_output["dod_achieved"] is True
+
+
+def test_token_usage_logged_for_each_stage(monkeypatch, tmp_path: Path) -> None:
+    """Ensure token usage logging fires for each agent stage."""
+    create_sample_project(tmp_path)
+    create_sample_task(tmp_path)
+
+    calls: list[tuple[str, dict[str, int] | None, int | None]] = []
+
+    def fake_log_token_usage(phase: str, token_usage: dict[str, int] | None, tokens_used: int | None = None) -> None:
+        calls.append((phase, token_usage, tokens_used))
+
+    monkeypatch.setattr("saha.orchestrator.loop.log_token_usage", fake_log_token_usage)
+
+    class TokenMockRunner(Runner):
+        def run_agent(self, agent_spec_path: Path, prompt: str, context=None, timeout: int = 300) -> RunnerResult:
+            agent = agent_spec_path.stem
+            usage = {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8}
+
+            if agent == "execution-implementer":
+                return RunnerResult.success_result(
+                    "ok",
+                    structured_output={"files_changed": [], "files_added": []},
+                    token_usage=usage,
+                )
+            if agent == "execution-test-critique":
+                return RunnerResult.success_result(
+                    "ok",
+                    structured_output={"critique_passed": True, "test_quality_score": "A"},
+                    token_usage=usage,
+                )
+            if agent == "execution-qa":
+                return RunnerResult.success_result(
+                    "ok",
+                    structured_output={"dod_achieved": True},
+                    token_usage=usage,
+                )
+            if agent == "execution-code-quality":
+                return RunnerResult.success_result(
+                    "ok",
+                    structured_output={"quality_passed": True},
+                    token_usage=usage,
+                )
+            if agent == "execution-manager":
+                return RunnerResult.success_result(
+                    "ok",
+                    structured_output={"status": "success"},
+                    token_usage=usage,
+                )
+            if agent == "execution-dod":
+                return RunnerResult.success_result(
+                    "ok",
+                    structured_output={"task_complete": True},
+                    token_usage=usage,
+                )
+            return RunnerResult.success_result("ok", token_usage=usage)
+
+        def run_prompt(self, prompt: str, system_prompt: str | None = None, timeout: int = 300) -> RunnerResult:
+            return RunnerResult.success_result("ok", token_usage={"input_tokens": 1, "output_tokens": 1})
+
+        def is_available(self) -> bool:
+            return True
+
+        def get_name(self) -> str:
+            return "token-mock"
+
+    settings = Settings(runner="mock", agents_path=Path("claude_plugin/agents"))
+    runner = TokenMockRunner()
+    tools = create_default_registry()
+    hooks = HookRegistry()
+    state_manager = StateManager(tmp_path / ".sahaidachny")
+
+    orchestrator = AgenticLoop(
+        runner=runner,
+        tool_registry=tools,
+        hook_registry=hooks,
+        state_manager=state_manager,
+        settings=settings,
+    )
+
+    config = LoopConfig(
+        task_id="test-task",
+        task_path=tmp_path / "docs/tasks/test-task",
+        max_iterations=1,
+        enabled_tools=[],
+    )
+
+    state = orchestrator.run(config)
+    assert state.current_phase.value == "completed"
+
+    phases = [call[0] for call in calls]
+    assert phases == [
+        "Implementation",
+        "Test Critique",
+        "QA Verification",
+        "Code Quality",
+        "Manager",
+        "DoD Check",
+    ]

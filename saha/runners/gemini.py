@@ -109,25 +109,42 @@ class GeminiRunner(Runner):
         cmd = self._build_command(prompt, system_prompt)
 
         try:
-            result = subprocess.run(
+            process = subprocess.Popen(
                 cmd,
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=timeout,
                 cwd=self._working_dir,
             )
 
-            if result.returncode != 0:
+            try:
+                stdout, stderr = process.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                stdout, stderr = process.communicate()
+                return RunnerResult.failure(
+                    f"Command timed out after {timeout} seconds",
+                    exit_code=124,
+                )
+            except KeyboardInterrupt:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                raise
+
+            if process.returncode != 0:
                 return RunnerResult(
                     success=False,
-                    output=result.stdout,
-                    error=result.stderr or f"Exit code: {result.returncode}",
-                    exit_code=result.returncode,
+                    output=stdout,
+                    error=stderr or f"Exit code: {process.returncode}",
+                    exit_code=process.returncode,
                 )
 
             return RunnerResult.success_result(
-                output=result.stdout,
-                structured_output=self._try_parse_json(result.stdout),
+                output=stdout,
+                structured_output=self._try_parse_json(stdout),
             )
 
         except subprocess.TimeoutExpired:

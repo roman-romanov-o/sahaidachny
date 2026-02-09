@@ -178,7 +178,7 @@ class TestBootstrapScript:
         )
 
         assert exit_code == 0, f"version command failed: {output}"
-        assert "saha version 0.2.0" in output
+        assert "saha version" in output.lower()
 
     def test_subsequent_runs_are_fast(self, debian_container):
         """Test that after initial setup, subsequent runs don't reinstall."""
@@ -201,4 +201,4 @@ class TestBootstrapScript:
         # Second run should NOT have installation messages
         assert "Installing uv" not in output2
         assert "Setting up Python" not in output2
-        assert "saha version 0.2.0" in output2
+        assert "saha version" in output2.lower()

@@ -5,7 +5,7 @@
 <h1 align="center">Sahaidachny</h1>
 
 <p align="center">
-  <strong>Autonomous AI agent orchestrator for hierarchical task execution in Claude Code</strong>
+  <strong>Autonomous AI agent orchestrator for hierarchical task execution in Claude Code and Codex</strong>
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 
 Sahaidachny solves a fundamental problem in AI-assisted coding: **how to reliably implement complex features that span multiple files, require architectural decisions, and need verification**.
 
-It's a Claude Code plugin that enables:
+It's a Claude Code plugin for planning plus a runner-agnostic execution loop that enables:
 
 - **Structured Planning** — Build hierarchical task specifications with user stories, design decisions, API contracts, and test specs
 - **Autonomous Execution** — Run agentic loops across multiple context windows that implement, verify, and iterate
@@ -45,7 +45,8 @@ It's a Claude Code plugin that enables:
 ### Prerequisites
 
 - Python 3.11+
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured
+- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured (planning)
+- [Codex CLI](https://github.com/openai/codex) installed and configured (optional for execution)
 
 ### Install via pipx (Recommended)
 
@@ -96,6 +97,18 @@ saha claude
 ```bash
 # Back in terminal:
 saha run task-01
+```
+
+To run execution agents with Codex instead of Claude Code, set:
+
+```bash
+export SAHA_AGENTS__DEFAULT_RUNNER=codex
+```
+
+Or run a single task with Codex:
+
+```bash
+saha run task-01 --runner codex
 ```
 
 ### 5. Monitor Progress
@@ -194,6 +207,8 @@ Each iteration learns from previous failures via `fix_info`, enabling targeted f
 | `saha clean [task-id]` | Remove execution state |
 | `saha claude` | Launch Claude Code with plugin |
 
+To stop a running loop, press `Ctrl+C`. Sahaidachny will stop the current agent, run the Manager to update task artifacts, and mark the task as stopped so you can resume later.
+
 ## Code Quality Tools
 
 The execution loop integrates with:
@@ -212,6 +227,12 @@ SAHA_MAX_ITERATIONS=15
 SAHA_RUNNER=claude
 SAHA_TOOL_COMPLEXITY_THRESHOLD=20
 SAHA_HOOK_NTFY_ENABLED=true
+
+# Use Codex for execution agents
+# SAHA_AGENTS__DEFAULT_RUNNER=codex
+# SAHA_CODEX_MODEL=o3
+# SAHA_CODEX_DANGEROUSLY_BYPASS_SANDBOX=false
+# SAHA_CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS=false
 ```
 
 ## Documentation
@@ -230,5 +251,5 @@ SAHA_HOOK_NTFY_ENABLED=true
 ---
 
 <p align="center">
-  <sub>Built for <a href="https://claude.ai/code">Claude Code</a></sub>
+  <sub>Built for <a href="https://claude.ai/code">Claude Code</a> planning and multi-runner execution (Claude Code, Codex, Gemini)</sub>
 </p>

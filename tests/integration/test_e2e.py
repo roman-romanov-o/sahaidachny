@@ -53,12 +53,12 @@ from saha.hooks.notification import LoggingHook
 from saha.orchestrator.state import StateManager
 from saha.orchestrator.loop import AgenticLoop, LoopConfig
 
-settings = Settings(runner="mock")
+settings = Settings(runner="mock", agents_path=Path("claude_plugin/agents"))
 runner = MockRunner(responses={
-    "execution_implementer": "code written",
-    "execution_qa": "dod achieved",
-    "execution_manager": "task updated",
-    "execution_dod": "task complete",
+    "execution-implementer": "code written",
+    "execution-qa": "dod achieved",
+    "execution-manager": "task updated",
+    "execution-dod": "task complete",
 })
 
 tools = create_default_registry()
@@ -119,13 +119,13 @@ from saha.orchestrator.state import StateManager
 from saha.orchestrator.loop import AgenticLoop, LoopConfig
 from saha.runners.base import RunnerResult
 
-settings = Settings(runner="mock")
+settings = Settings(runner="mock", agents_path=Path("claude_plugin/agents"))
 call_count = {"qa": 0}
 
 class CountingMockRunner(MockRunner):
     def run_agent(self, agent_spec_path, prompt, context=None, timeout=300):
         key = agent_spec_path.stem
-        if key == "execution_qa":
+        if key == "execution-qa":
             call_count["qa"] += 1
             if call_count["qa"] == 1:
                 return RunnerResult.success_result(
@@ -137,7 +137,7 @@ class CountingMockRunner(MockRunner):
                     "dod passed",
                     structured_output={"dod_achieved": True}
                 )
-        elif key == "execution_dod":
+        elif key == "execution-dod":
             return RunnerResult.success_result(
                 "complete",
                 structured_output={"task_complete": True}
@@ -202,14 +202,14 @@ from saha.runners.base import RunnerResult
 class AlwaysFailQARunner(MockRunner):
     def run_agent(self, agent_spec_path, prompt, context=None, timeout=300):
         key = agent_spec_path.stem
-        if key == "execution_qa":
+        if key == "execution-qa":
             return RunnerResult.success_result(
                 "always fail",
                 structured_output={"dod_achieved": False, "fix_info": "Still failing"}
             )
         return super().run_agent(agent_spec_path, prompt, context, timeout)
 
-settings = Settings(runner="mock")
+settings = Settings(runner="mock", agents_path=Path("claude_plugin/agents"))
 runner = AlwaysFailQARunner()
 tools = create_default_registry()
 hooks = HookRegistry()
@@ -322,8 +322,8 @@ class TestAgentSpecifications:
         )
 
         assert exit_code == 0, f"Agent listing failed: {output}"
-        assert "execution_implementer.md" in output
-        assert "execution_qa.md" in output
+        assert "execution-implementer.md" in output
+        assert "execution-qa.md" in output
 
     def test_agent_specs_readable(self, bootstrapped_container):
         """Test that agent specs can be read."""
@@ -332,7 +332,7 @@ from pathlib import Path
 
 agents_path = Path("claude_plugin/agents")
 
-for agent_file in agents_path.glob("execution_*.md"):
+for agent_file in agents_path.glob("execution-*.md"):
     content = agent_file.read_text()
     print(f"{agent_file.name}: {len(content)} bytes")
     assert len(content) > 100

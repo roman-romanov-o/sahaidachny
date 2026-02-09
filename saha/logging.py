@@ -4,6 +4,9 @@ Provides colored, readable log output with filtering for verbose tool messages.
 """
 
 import logging
+import os
+from datetime import datetime
+from pathlib import Path
 from typing import Any, ClassVar
 
 from rich.console import Console
@@ -35,6 +38,11 @@ SAHA_THEME = Theme({
     "prompt": "white",
     "prompt.header": "bold bright_yellow",
     "prompt.border": "bright_yellow",
+    # Token usage
+    "usage.border": "bright_black",
+    "usage.label": "bold bright_cyan",
+    "usage.value": "white",
+    "usage.muted": "dim",
 })
 
 # Shared console instance
@@ -90,13 +98,14 @@ def setup_logging(verbose: bool = False) -> None:
     # Create handler
     handler = SahaRichHandler()
     handler.addFilter(SahaLogFilter(debug=verbose))
+    file_handler = _create_file_handler(verbose)
 
     # Configure root logger
     logging.basicConfig(
         level=level,
         format="%(message)s",
         datefmt="[%H:%M:%S]",
-        handlers=[handler],
+        handlers=[handler, file_handler],
         force=True,
     )
 
@@ -104,6 +113,24 @@ def setup_logging(verbose: bool = False) -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+
+def _create_file_handler(verbose: bool) -> logging.FileHandler:
+    log_dir = Path(".saha_logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    pid = os.getpid()
+    log_path = log_dir / f"saha-{timestamp}-{pid}.log"
+
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler.setLevel(logging.DEBUG if verbose else logging.INFO)
+    handler.setFormatter(
+        logging.Formatter(
+            fmt="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    return handler
 
 
 def log_phase_start(phase: str, task_id: str) -> None:
@@ -170,6 +197,15 @@ def log_task_failed(task_id: str, error: str) -> None:
     console.print(f"[failure]{'═' * 50}[/failure]")
 
 
+def log_task_stopped(task_id: str, reason: str | None = None) -> None:
+    """Log task stop (user interrupted)."""
+    console.print(f"\n[warning]{'═' * 50}[/warning]")
+    console.print(f"[warning]■ TASK STOPPED: {task_id}[/warning]")
+    if reason:
+        console.print(f"[warning]  Reason: {reason}[/warning]")
+    console.print(f"[warning]{'═' * 50}[/warning]")
+
+
 def log_agent_prompt(agent_name: str, prompt: str) -> None:
     """Log the prompt being sent to an agent.
 
@@ -182,3 +218,34 @@ def log_agent_prompt(agent_name: str, prompt: str) -> None:
     for line in prompt.split("\n"):
         console.print(f"[prompt.border]│[/prompt.border] [prompt]{line}[/prompt]")
     console.print(f"[prompt.border]└{'─' * 40}[/prompt.border]")
+
+
+def log_token_usage(phase: str, token_usage: dict[str, int] | None, tokens_used: int | None = None) -> None:
+    """Log token usage for a phase with a distinct visual section."""
+    if not token_usage and (tokens_used is None or tokens_used <= 0):
+        console.print(f"[usage.border]{'─' * 50}[/usage.border]")
+        console.print(f"[usage.label]Token usage ({phase})[/usage.label] [usage.muted]n/a[/usage.muted]")
+        return
+
+    parts: list[str] = []
+    if token_usage:
+        ordered_keys = [
+            "total_tokens",
+            "input_tokens",
+            "output_tokens",
+            "cache_read_input_tokens",
+            "cache_write_input_tokens",
+            "reasoning_tokens",
+        ]
+        for key in ordered_keys:
+            value = token_usage.get(key)
+            if isinstance(value, int) and value >= 0:
+                label = key.replace("_tokens", "").replace("_", " ")
+                parts.append(f"{label}={value}")
+
+    if not parts and tokens_used is not None:
+        parts.append(f"total={tokens_used}")
+
+    details = ", ".join(parts) if parts else "n/a"
+    console.print(f"[usage.border]{'─' * 50}[/usage.border]")
+    console.print(f"[usage.label]Token usage ({phase})[/usage.label] [usage.value]{details}[/usage.value]")

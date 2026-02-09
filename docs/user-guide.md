@@ -30,7 +30,7 @@
 
 ## What is Sahaidachny?
 
-Sahaidachny is an autonomous AI agent orchestrator designed for hierarchical task execution in Claude Code. It solves a fundamental problem in AI-assisted coding: **how to reliably implement complex features that span multiple files, require architectural decisions, and need verification**.
+Sahaidachny is an autonomous AI agent orchestrator designed for hierarchical task execution with Claude Code planning and runner-agnostic execution (Claude Code, Codex, or Gemini). It solves a fundamental problem in AI-assisted coding: **how to reliably implement complex features that span multiple files, require architectural decisions, and need verification**.
 
 ### Core Capabilities
 
@@ -58,7 +58,8 @@ Sahaidachny is an autonomous AI agent orchestrator designed for hierarchical tas
 ### Prerequisites
 
 - Python 3.11 or 3.12
-- Claude Code CLI installed and configured
+- Claude Code CLI installed and configured (planning)
+- Codex CLI installed and configured (optional for execution)
 
 ### Global Installation (Recommended)
 
@@ -688,6 +689,7 @@ saha run <task-id> [OPTIONS]
 | `--max-iter` | `-m` | Maximum iterations (default: 10) |
 | `--tools` | `-t` | Comma-separated enabled tools |
 | `--playwright` | | Enable Playwright for UI verification |
+| `--skip-verify` | | Skip artifact verification checks entirely |
 | `--dry-run` | | Simulate without making changes |
 | `--verbose` | `-v` | Enable verbose logging |
 
@@ -702,6 +704,10 @@ saha run task-01 --tools ruff,pytest,ty
 saha run task-01 --playwright --path custom/path/task-01
 saha run task-01 --dry-run
 ```
+
+By default, verification warnings block execution. You can confirm at the prompt to proceed, or use `--skip-verify` to bypass checks entirely.
+
+To stop a running loop, press `Ctrl+C`. Sahaidachny will stop the current agent, run the Manager to update task artifacts, and mark the task as stopped so you can resume later.
 
 #### `saha resume` - Resume Interrupted Execution
 
@@ -880,7 +886,7 @@ The implementation fails 2 acceptance criteria:
 
 ### Execution Agents
 
-The execution phase uses five specialized Claude Code subagents:
+The execution phase uses five specialized execution agents (run via Claude Code, Codex, or Gemini depending on configuration):
 
 #### 1. Implementation Agent
 
@@ -1070,8 +1076,12 @@ Sahaidachny uses Pydantic Settings for configuration with environment variable s
 | `state_dir` | `SAHA_STATE_DIR` | `.sahaidachny` | State persistence directory |
 | `task_base_path` | `SAHA_TASK_BASE_PATH` | `docs/tasks` | Base folder for task artifacts |
 | `max_iterations` | `SAHA_MAX_ITERATIONS` | `10` | Default max loop iterations |
-| `runner` | `SAHA_RUNNER` | `claude` | Runner type: `claude` or `mock` |
-| `claude_model` | `SAHA_CLAUDE_MODEL` | `claude-sonnet-4-20250514` | Claude model to use |
+| `runner` | `SAHA_RUNNER` | `claude` | Runner type (fallback): `claude`, `codex`, `gemini`, or `mock` |
+| `claude_model` | `SAHA_CLAUDE_MODEL` | `claude-sonnet-4-20250929` | Claude model to use |
+| `codex_model` | `SAHA_CODEX_MODEL` | _none_ | Codex model override (optional) |
+| `codex_sandbox` | `SAHA_CODEX_SANDBOX` | `workspace-write` | Codex sandbox policy |
+| `claude_dangerously_skip_permissions` | `SAHA_CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS` | `false` | Disable Claude CLI permission prompts |
+| `codex_dangerously_bypass_sandbox` | `SAHA_CODEX_DANGEROUSLY_BYPASS_SANDBOX` | `false` | Disable Codex approvals and sandbox |
 | `verbose` | `SAHA_VERBOSE` | `false` | Enable verbose logging |
 | `dry_run` | `SAHA_DRY_RUN` | `false` | Simulate without changes |
 
@@ -1084,6 +1094,13 @@ Sahaidachny uses Pydantic Settings for configuration with environment variable s
 | `complexity_enabled` | `SAHA_TOOL_COMPLEXITY_ENABLED` | `true` | Enable complexity checking |
 | `complexity_threshold` | `SAHA_TOOL_COMPLEXITY_THRESHOLD` | `15` | Max cognitive complexity |
 | `pytest_enabled` | `SAHA_TOOL_PYTEST_ENABLED` | `true` | Enable pytest runner |
+
+### Agent Runner Overrides
+
+| Setting | Env Variable | Default | Description |
+|---------|--------------|---------|-------------|
+| `agents.default_runner` | `SAHA_AGENTS__DEFAULT_RUNNER` | `claude` | Default runner for execution agents |
+| `agents.qa.runner` | `SAHA_AGENTS__QA__RUNNER` | `claude` | Override runner for QA agent |
 
 ### Hook Configuration
 
@@ -1098,8 +1115,14 @@ Sahaidachny uses Pydantic Settings for configuration with environment variable s
 ```bash
 # Runner configuration
 SAHA_RUNNER=claude
-SAHA_CLAUDE_MODEL=claude-sonnet-4-20250514
+SAHA_CLAUDE_MODEL=claude-sonnet-4-20250929
 SAHA_MAX_ITERATIONS=15
+
+# To use Codex for execution agents:
+# SAHA_AGENTS__DEFAULT_RUNNER=codex
+# SAHA_CODEX_MODEL=o3
+# SAHA_CODEX_DANGEROUSLY_BYPASS_SANDBOX=false
+# SAHA_CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS=false
 
 # Tool settings
 SAHA_TOOL_COMPLEXITY_THRESHOLD=20
@@ -1361,7 +1384,7 @@ saha clean --all
 ```
 saha claude [args...] [-p plugin-path]    # Launch Claude Code with plugin
 saha plugin [--copy-to <dir>]             # Show plugin location or copy files
-saha run <task-id> [-p path] [-m max-iter] [-t tools] [--playwright] [--dry-run] [-v]
+saha run <task-id> [-p path] [-m max-iter] [-t tools] [--runner <name>] [--qa-runner <name>] [--playwright] [--skip-verify] [--dangerously-skip-permissions] [--dry-run] [-v]
 saha resume <task-id> [-v]
 saha status [task-id] [-v]
 saha tools
@@ -1376,7 +1399,12 @@ SAHA_STATE_DIR=.sahaidachny
 SAHA_TASK_BASE_PATH=docs/tasks
 SAHA_MAX_ITERATIONS=10
 SAHA_RUNNER=claude
-SAHA_CLAUDE_MODEL=claude-sonnet-4-20250514
+SAHA_CLAUDE_MODEL=claude-sonnet-4-20250929
+SAHA_CODEX_MODEL=o3
+SAHA_CODEX_SANDBOX=workspace-write
+SAHA_AGENTS__DEFAULT_RUNNER=claude
+SAHA_CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS=false
+SAHA_CODEX_DANGEROUSLY_BYPASS_SANDBOX=false
 SAHA_VERBOSE=false
 SAHA_DRY_RUN=false
 SAHA_TOOL_RUFF_ENABLED=true
@@ -1391,4 +1419,4 @@ SAHA_HOOK_NTFY_SERVER=https://ntfy.sh
 
 ---
 
-**Last Updated:** 2026-01-22
+**Last Updated:** 2026-02-07

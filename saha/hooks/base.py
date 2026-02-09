@@ -13,6 +13,7 @@ class HookEvent(str, Enum):
     LOOP_COMPLETE = "loop_complete"
     LOOP_FAILED = "loop_failed"
     LOOP_ERROR = "loop_error"
+    LOOP_STOPPED = "loop_stopped"
 
     # Iteration lifecycle
     ITERATION_START = "iteration_start"
@@ -20,6 +21,8 @@ class HookEvent(str, Enum):
 
     # Phase events
     IMPLEMENTATION_START = "implementation_start"
+    TEST_CRITIQUE_START = "test_critique_start"
+    TEST_CRITIQUE_FAILED = "test_critique_failed"
     QA_START = "qa_start"
     QA_FAILED = "qa_failed"
     QUALITY_START = "quality_start"

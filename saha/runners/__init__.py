@@ -2,6 +2,7 @@
 
 from saha.runners.base import Runner, RunnerResult
 from saha.runners.claude import ClaudeRunner, MockRunner
+from saha.runners.codex import CodexRunner
 from saha.runners.gemini import GeminiRunner
 from saha.runners.intelligent_mock import IntelligentMockRunner
 from saha.runners.registry import AgentConfig, RunnerRegistry, RunnerType
@@ -10,6 +11,7 @@ __all__ = [
     "Runner",
     "RunnerResult",
     "ClaudeRunner",
+    "CodexRunner",
     "MockRunner",
     "GeminiRunner",
     "IntelligentMockRunner",

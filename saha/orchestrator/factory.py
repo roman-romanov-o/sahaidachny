@@ -11,6 +11,7 @@ from saha.orchestrator.loop import AgenticLoop
 from saha.orchestrator.state import StateManager
 from saha.runners.base import Runner
 from saha.runners.claude import ClaudeRunner, MockRunner
+from saha.runners.codex import CodexRunner
 from saha.runners.gemini import GeminiRunner
 from saha.runners.registry import AgentConfig, RunnerRegistry, RunnerType
 from saha.tools.registry import create_default_registry
@@ -19,7 +20,7 @@ from saha.tools.registry import create_default_registry
 def create_runner_registry(settings: Settings) -> RunnerRegistry:
     """Create and configure the runner registry.
 
-    Sets up runners for Claude, Gemini, and Mock backends, and configures
+    Sets up runners for Claude, Codex, Gemini, and Mock backends, and configures
     per-agent runner assignments based on settings.
     """
     registry = RunnerRegistry()
@@ -32,6 +33,16 @@ def create_runner_registry(settings: Settings) -> RunnerRegistry:
         model=settings.claude_model,
         working_dir=Path.cwd(),
         stream_output=True,
+        skip_permissions=settings.claude_dangerously_skip_permissions,
+    )
+
+    registry.register_factory(
+        RunnerType.CODEX,
+        CodexRunner,
+        model=settings.codex_model,
+        working_dir=Path.cwd(),
+        sandbox=settings.codex_sandbox,
+        dangerously_bypass=settings.codex_dangerously_bypass_sandbox,
     )
 
     registry.register_factory(
@@ -57,10 +68,12 @@ def create_runner_registry(settings: Settings) -> RunnerRegistry:
     }
 
     for agent_name, config in agent_mapping.items():
+        fields_set = getattr(config, "model_fields_set", set())
+        runner_name = config.runner if "runner" in fields_set else default_type.value
         registry.configure_agent(
             AgentConfig(
                 agent_name=agent_name,
-                runner_type=RunnerType(config.runner),
+                runner_type=RunnerType(runner_name),
                 agent_variant=config.variant,
                 timeout=config.timeout,
             )
@@ -123,11 +136,19 @@ def _create_default_runner(settings: Settings) -> Runner:
             model=settings.gemini_model,
             working_dir=Path.cwd(),
         )
+    elif settings.runner == "codex":
+        return CodexRunner(
+            model=settings.codex_model,
+            working_dir=Path.cwd(),
+            sandbox=settings.codex_sandbox,
+            dangerously_bypass=settings.codex_dangerously_bypass_sandbox,
+        )
     else:
         return ClaudeRunner(
             model=settings.claude_model,
             working_dir=Path.cwd(),
             stream_output=True,  # Stream output for transparency
+            skip_permissions=settings.claude_dangerously_skip_permissions,
         )
 
 

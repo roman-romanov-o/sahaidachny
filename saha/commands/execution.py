@@ -20,7 +20,7 @@ from saha.commands.common import setup_logging
 from saha.commands.plugin import sync_claude_artifacts
 from saha.config.settings import Settings
 from saha.context import clear_current_task, get_current_task, resolve_task_id, set_current_task
-from saha.models.state import ExecutionState
+from saha.models.state import ExecutionState, LoopPhase
 from saha.orchestrator.factory import create_orchestrator
 from saha.orchestrator.loop import LoopConfig
 from saha.orchestrator.state import StateManager
@@ -72,6 +72,8 @@ def _run_command(
     tools: str | None,
     playwright: bool,
     qa_runner: str | None,
+    default_runner: str | None,
+    dangerously_skip_permissions: bool,
     dry_run: bool,
     verbose: bool,
     skip_verify: bool,
@@ -84,16 +86,35 @@ def _run_command(
     if sync_result.total_synced > 0:
         typer.echo(f"Synced {sync_result.total_synced} missing agent(s): {', '.join(sync_result.agents_synced)}")
 
-    settings = _build_run_settings(verbose, dry_run, qa_runner)
+    settings = _build_run_settings(verbose, dry_run, qa_runner, default_runner, dangerously_skip_permissions)
     resolved_path = _resolve_and_validate_task_path(task_id, task_path, settings)
     enabled_tools = tools.split(",") if tools else None
 
-    # Run verification unless explicitly skipped
-    if not skip_verify:
+    # Run verification unless explicitly skipped or dry-run
+    if not skip_verify and not dry_run:
         verification_result = _run_verification(task_id, resolved_path)
-        if not verification_result.can_proceed():
-            typer.echo("\nVerification failed. Use --skip-verify to bypass.", err=True)
+        if verification_result.errors:
+            typer.echo(
+                "\nVerification failed. Fix errors and re-run, or use --skip-verify to bypass.",
+                err=True,
+            )
             raise typer.Exit(1)
+
+        if verification_result.warnings:
+            try:
+                proceed = typer.confirm(
+                    "\nVerification has warnings. Improve planning artifacts and re-run. "
+                    "Proceed anyway?",
+                    default=False,
+                    abort=False,
+                )
+            except (EOFError, typer.Abort):
+                proceed = False
+
+            if not proceed:
+                typer.echo("\nAborting due to verification warnings.", err=True)
+                raise typer.Exit(1)
+            typer.echo("Proceeding despite verification warnings.")
 
         # Clean up unfilled template artifacts after successful verification
         cleanup_result = cleanup_template_artifacts(resolved_path)
@@ -119,14 +140,39 @@ def _run_command(
     _display_run_result(state)
 
 
-def _build_run_settings(verbose: bool, dry_run: bool, qa_runner: str | None) -> Settings:
+def _build_run_settings(
+    verbose: bool,
+    dry_run: bool,
+    qa_runner: str | None,
+    default_runner: str | None,
+    dangerously_skip_permissions: bool,
+) -> Settings:
     """Build settings with CLI overrides."""
     settings = Settings(dry_run=dry_run, verbose=verbose)
+
+    if default_runner:
+        agent_updates = {
+            "implementer": settings.agents.implementer.model_copy(update={"runner": default_runner}),
+            "qa": settings.agents.qa.model_copy(update={"runner": default_runner}),
+            "code_quality": settings.agents.code_quality.model_copy(update={"runner": default_runner}),
+            "manager": settings.agents.manager.model_copy(update={"runner": default_runner}),
+            "dod": settings.agents.dod.model_copy(update={"runner": default_runner}),
+        }
+        updated_agents = settings.agents.model_copy(update={"default_runner": default_runner, **agent_updates})
+        settings = settings.model_copy(update={"agents": updated_agents, "runner": default_runner})
 
     if qa_runner:
         updated_qa = settings.agents.qa.model_copy(update={"runner": qa_runner})
         updated_agents = settings.agents.model_copy(update={"qa": updated_qa})
         settings = settings.model_copy(update={"agents": updated_agents})
+
+    if dangerously_skip_permissions:
+        settings = settings.model_copy(
+            update={
+                "claude_dangerously_skip_permissions": True,
+                "codex_dangerously_bypass_sandbox": True,
+            }
+        )
 
     return settings
 
@@ -153,6 +199,8 @@ def _display_run_result(state: ExecutionState) -> None:
     """Display run command result."""
     typer.echo(f"\nLoop finished. Final phase: {state.current_phase.value}")
     typer.echo(f"Iterations completed: {state.current_iteration}")
+    if state.current_phase == LoopPhase.STOPPED and state.error_message:
+        typer.echo(f"Reason: {state.error_message}")
 
 
 def _run_verification(task_id: str, task_path: Path) -> VerificationResult:
@@ -229,6 +277,8 @@ def _show_single_task_status(state_manager: StateManager, task_id: str, verbose:
     typer.echo(f"Iteration: {state.current_iteration}/{state.max_iterations}")
     typer.echo(f"Started: {state.started_at}")
     typer.echo(f"Completed: {state.completed_at or 'N/A'}")
+    if state.error_message and state.current_phase in (LoopPhase.FAILED, LoopPhase.STOPPED):
+        typer.echo(f"Reason: {state.error_message}")
 
     if verbose and state.iterations:
         typer.echo("\nIterations:")
@@ -360,8 +410,19 @@ def register_execution_commands(app: typer.Typer) -> None:
         ] = False,
         qa_runner: Annotated[
             str | None,
-            typer.Option("--qa-runner", help="Runner for QA agent: claude, gemini, or mock"),
+            typer.Option("--qa-runner", help="Runner for QA agent: claude, codex, gemini, or mock"),
         ] = None,
+        default_runner: Annotated[
+            str | None,
+            typer.Option("--runner", help="Default runner for execution agents: claude, codex, gemini, or mock"),
+        ] = None,
+        dangerously_skip_permissions: Annotated[
+            bool,
+            typer.Option(
+                "--dangerously-skip-permissions",
+                help="Disable execution confirmations for Claude/Codex (unsafe)",
+            ),
+        ] = False,
         dry_run: Annotated[
             bool,
             typer.Option("--dry-run", help="Simulate execution without actually running"),
@@ -385,7 +446,8 @@ def register_execution_commands(app: typer.Typer) -> None:
         - At least 1 test spec
         - At least 1 implementation phase
 
-        Use --skip-verify to bypass verification and run anyway.
+        Warnings will block execution by default. You can confirm at the prompt to proceed.
+        Use --skip-verify to bypass verification entirely and run anyway.
 
         The loop executes these phases in order:
         1. Implementation - writes code changes
@@ -394,8 +456,8 @@ def register_execution_commands(app: typer.Typer) -> None:
         4. Manager - updates task artifacts
         5. DoD Check - determines if task is complete
 
-        Different agents can use different LLM backends. Use --qa-runner to run
-        the QA agent on Gemini while keeping other agents on Claude.
+        Different agents can use different LLM backends. Use --runner to switch
+        all execution agents (e.g., Codex), or --qa-runner for per-agent overrides.
         """
         try:
             resolved_id = resolve_task_id(task_id)
@@ -409,6 +471,8 @@ def register_execution_commands(app: typer.Typer) -> None:
             tools,
             playwright,
             qa_runner,
+            default_runner,
+            dangerously_skip_permissions,
             dry_run,
             verbose,
             skip_verify,

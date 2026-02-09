@@ -134,6 +134,14 @@ class StateManager:
         state.record_step(LoopPhase.FAILED, StepStatus.FAILED, error=error)
         self.save(state)
 
+    def mark_stopped(self, state: ExecutionState, reason: str | None = None) -> None:
+        """Mark the entire execution as stopped."""
+        state.current_phase = LoopPhase.STOPPED
+        state.completed_at = datetime.now()
+        state.error_message = reason
+        state.record_step(LoopPhase.STOPPED, StepStatus.SKIPPED, error=reason)
+        self.save(state)
+
     def list_tasks(self) -> list[str]:
         """List all tasks with saved state."""
         if not self._state_dir.exists():

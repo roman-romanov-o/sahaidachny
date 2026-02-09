@@ -1,7 +1,7 @@
 """Runner registry for multi-backend LLM support.
 
 This module provides a registry pattern for managing multiple runner backends,
-allowing different agents to use different LLM providers (Claude, Gemini, etc.).
+allowing different agents to use different LLM providers (Claude, Codex, Gemini, etc.).
 """
 
 from dataclasses import dataclass, field
@@ -16,6 +16,7 @@ class RunnerType(str, Enum):
     """Available runner types."""
 
     CLAUDE = "claude"
+    CODEX = "codex"
     GEMINI = "gemini"
     MOCK = "mock"
 
@@ -25,7 +26,7 @@ class AgentConfig:
     """Configuration for a specific agent.
 
     Allows customizing which runner and tools an agent uses.
-    This enables scenarios like using Gemini for QA while Claude for implementation.
+    This enables scenarios like using Codex for QA while Claude for implementation.
     """
 
     agent_name: str

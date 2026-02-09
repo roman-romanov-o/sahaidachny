@@ -65,8 +65,8 @@ def create_project_tarball(extra_files: dict[str, str] | None = None) -> bytes:
 
 def run_in_container(container: DockerContainer, cmd: str) -> tuple[int, str]:
     """Run a command in container with proper environment."""
-    full_cmd = f"bash -c 'export HOME=/root && export PATH=$HOME/.local/bin:$PATH && {cmd}'"
-    exit_code, output = container.exec(full_cmd)
+    full_cmd = f"export HOME=/root && export PATH=$HOME/.local/bin:$PATH && {cmd}"
+    exit_code, output = container.exec(["bash", "-c", full_cmd])
     output_str = output.decode() if isinstance(output, bytes) else output
     return exit_code, output_str
 
@@ -76,7 +76,7 @@ def run_python_in_container(container: DockerContainer, code: str) -> tuple[int,
 
     This avoids shell quoting issues with complex Python code.
     """
-    cmd = f"""cd /root/sahaidachny && cat > /tmp/test_script.py << 'ENDPYTHON'
+    cmd = f"""cd /root/sahaidachny && cat > /tmp/test_script.py << "ENDPYTHON"
 {code}
 ENDPYTHON
 .venv/bin/python /tmp/test_script.py"""

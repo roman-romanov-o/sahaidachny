@@ -179,7 +179,7 @@ from saha.orchestrator.state import StateManager
 from saha.orchestrator.loop import AgenticLoop, LoopConfig
 
 # Setup
-settings = Settings(runner="mock")
+settings = Settings(runner="mock", agents_path=Path("claude_plugin/agents"))
 runner = IntelligentMockRunner(
     working_dir=Path("/root/sahaidachny"),
     fail_qa_count=0,  # No failures for basic test
@@ -260,7 +260,7 @@ from saha.hooks import HookRegistry
 from saha.orchestrator.state import StateManager
 from saha.orchestrator.loop import AgenticLoop, LoopConfig
 
-settings = Settings(runner="mock")
+settings = Settings(runner="mock", agents_path=Path("claude_plugin/agents"))
 
 # Configure runner to fail QA twice before passing
 runner = IntelligentMockRunner(
@@ -332,7 +332,7 @@ from saha.hooks import HookRegistry
 from saha.orchestrator.state import StateManager
 from saha.orchestrator.loop import AgenticLoop, LoopConfig
 
-settings = Settings(runner="mock")
+settings = Settings(runner="mock", agents_path=Path("claude_plugin/agents"))
 
 runner = IntelligentMockRunner(
     working_dir=Path("/root/sahaidachny"),
@@ -467,7 +467,7 @@ from saha.hooks import HookRegistry
 from saha.orchestrator.state import StateManager
 from saha.orchestrator.loop import AgenticLoop, LoopConfig
 
-settings = Settings(runner="mock")
+settings = Settings(runner="mock", agents_path=Path("claude_plugin/agents"))
 
 runner = IntelligentMockRunner(
     working_dir=Path("/root/sahaidachny"),
@@ -553,7 +553,7 @@ from saha.hooks import HookRegistry
 from saha.orchestrator.state import StateManager
 from saha.orchestrator.loop import AgenticLoop, LoopConfig
 
-settings = Settings(runner="mock")
+settings = Settings(runner="mock", agents_path=Path("claude_plugin/agents"))
 
 # Always fail QA to force iteration loop
 runner = IntelligentMockRunner(
@@ -670,16 +670,20 @@ from saha.orchestrator.loop import AgenticLoop, LoopConfig
 # Custom hook to track events
 class TrackingHook(Hook):
     def __init__(self):
-        self.events = []
+        self._events = []
 
     @property
     def name(self):
         return "tracking"
 
-    def execute(self, event, **kwargs):
-        self.events.append(event.value if hasattr(event, "value") else str(event))
+    @property
+    def events(self):
+        return []
 
-settings = Settings(runner="mock")
+    def execute(self, event, **kwargs):
+        self._events.append(event.value if hasattr(event, "value") else str(event))
+
+settings = Settings(runner="mock", agents_path=Path("claude_plugin/agents"))
 runner = IntelligentMockRunner(
     working_dir=Path("/root/sahaidachny"),
     fail_qa_count=0,
@@ -711,16 +715,16 @@ config = LoopConfig(
 
 state = orchestrator.run(config)
 
-print(f"EVENTS: {tracker.events}")
+print(f"EVENTS: {tracker._events}")
 
 # Verify key events were triggered
 expected_events = ["loop_start", "iteration_start"]
-found_all = all(any(exp in evt for evt in tracker.events) for exp in expected_events)
+found_all = all(any(exp in evt for evt in tracker._events) for exp in expected_events)
 
 if found_all:
     print("SUCCESS: All expected hooks triggered")
 else:
-    print(f"MISSING: Expected {expected_events}, got {tracker.events}")
+    print(f"MISSING: Expected {expected_events}, got {tracker._events}")
 '''
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 

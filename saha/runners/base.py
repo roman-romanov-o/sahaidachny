@@ -15,6 +15,7 @@ class RunnerResult:
     structured_output: dict[str, Any] | None = None
     error: str | None = None
     tokens_used: int = 0
+    token_usage: dict[str, int] | None = None
     exit_code: int = 0
 
     @classmethod
@@ -32,15 +33,38 @@ class RunnerResult:
         cls,
         output: str,
         structured_output: dict[str, Any] | None = None,
-        tokens_used: int = 0,
+        tokens_used: int | None = None,
+        token_usage: dict[str, int] | None = None,
     ) -> "RunnerResult":
         """Create a success result."""
+        if tokens_used is None and token_usage:
+            tokens_used = _infer_total_tokens(token_usage)
+        if tokens_used is None:
+            tokens_used = 0
         return cls(
             success=True,
             output=output,
             structured_output=structured_output,
             tokens_used=tokens_used,
+            token_usage=token_usage,
         )
+
+
+def _infer_total_tokens(token_usage: dict[str, int]) -> int:
+    """Infer total tokens from a usage dict."""
+    for key in ("total_tokens", "total"):
+        value = token_usage.get(key)
+        if isinstance(value, int):
+            return value
+    input_tokens = token_usage.get("input_tokens")
+    output_tokens = token_usage.get("output_tokens")
+    if isinstance(input_tokens, int) and isinstance(output_tokens, int):
+        return input_tokens + output_tokens
+    if isinstance(input_tokens, int):
+        return input_tokens
+    if isinstance(output_tokens, int):
+        return output_tokens
+    return 0
 
 
 class Runner(ABC):
