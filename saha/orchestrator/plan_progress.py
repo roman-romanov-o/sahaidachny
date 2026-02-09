@@ -42,7 +42,7 @@ class PlanProgressUpdater:
     """Update execution progress in implementation plan phase files."""
 
     def __init__(self, task_path: Path):
-        self._task_path = task_path
+        self._task_path = task_path.resolve()
         self._plan_dir = task_path / "implementation-plan"
 
     def select_active_phase(self, state: ExecutionState | None = None) -> PlanPhaseSelection | None:
@@ -53,7 +53,9 @@ class PlanProgressUpdater:
         if state:
             stored = state.context.get("current_plan_phase") if state.context else None
             if stored:
-                candidate = (self._task_path / stored).resolve()
+                candidate_path = Path(stored)
+                candidate = candidate_path if candidate_path.is_absolute() else (self._task_path / stored)
+                candidate = candidate.resolve()
                 if candidate.exists():
                     updated = self._ensure_phase_context(state, candidate)
                     return PlanPhaseSelection(candidate, updated)
@@ -146,9 +148,13 @@ class PlanProgressUpdater:
     def _ensure_phase_context(self, state: ExecutionState | None, phase_path: Path) -> bool:
         if state is None:
             return False
-        relative = phase_path.relative_to(self._task_path).as_posix()
-        if state.context.get("current_plan_phase") != relative:
-            state.context["current_plan_phase"] = relative
+        try:
+            relative = phase_path.relative_to(self._task_path).as_posix()
+            value = relative
+        except ValueError:
+            value = str(phase_path)
+        if state.context.get("current_plan_phase") != value:
+            state.context["current_plan_phase"] = value
             return True
         return False
 
@@ -233,4 +239,3 @@ class PlanProgressUpdater:
         if iteration > 0:
             return f"iter {iteration}"
         return "-"
-
