@@ -9,8 +9,8 @@ description = "Hierarchical task planning and autonomous agentic execution for C
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
-authors = [{ name = "Roman Romanov" }]
-keywords = ["ai", "agents", "task-planning", "claude", "automation"]
+authors = [{ name = "Roman Romanov", email = "roman.romanov.4work@gmail.com" }]
+keywords = ["ai", "agents", "task-planning", "claude", "automation", "workflow", "llm"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -53,7 +53,11 @@ anthropic = [
 saha = "saha.cli:main"
 
 [project.urls]
-Repository = "https://github.com/romanromanov/sahaidachny"
+Homepage = "https://github.com/roman-romanov-o/sahaidachny"
+Repository = "https://github.com/roman-romanov-o/sahaidachny"
+Issues = "https://github.com/roman-romanov-o/sahaidachny/issues"
+Changelog = "https://github.com/roman-romanov-o/sahaidachny/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/roman-romanov-o/sahaidachny#readme"
 
 [tool.hatch.build.targets.wheel]
 packages = ["saha", "task_tracker", "claude_plugin"]

@@ -9,6 +9,12 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/roman-romanov-o/sahaidachny/actions/workflows/ci.yml"><img src="https://github.com/roman-romanov-o/sahaidachny/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pypi.org/project/sahaidachny/"><img src="https://img.shields.io/pypi/v/sahaidachny.svg" alt="PyPI"></a>
+  <a href="https://pypi.org/project/sahaidachny/"><img src="https://img.shields.io/pypi/pyversions/sahaidachny.svg" alt="Python Versions"></a>
+</p>
+
+<p align="center">
   <a href="#installation">Installation</a> •
   <a href="#quick-start">Quick Start</a> •
   <a href="#how-it-works">How It Works</a> •
@@ -48,16 +54,30 @@ It's a Claude Code plugin for planning plus a runner-agnostic execution loop tha
 - [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured (planning)
 - [Codex CLI](https://github.com/openai/codex) installed and configured (optional for execution)
 
-### Install via pipx (Recommended)
+### Install from PyPI (Recommended)
 
+Using pipx (recommended for CLI tools):
 ```bash
 pipx install sahaidachny
 ```
 
-### Install via uv
-
+Using uv:
 ```bash
 uv tool install sahaidachny
+```
+
+Using pip:
+```bash
+pip install sahaidachny
+```
+
+### Install from Source
+
+For development or latest changes:
+```bash
+git clone https://github.com/roman-romanov-o/sahaidachny.git
+cd sahaidachny
+uv tool install .
 ```
 
 ### Verify Installation
