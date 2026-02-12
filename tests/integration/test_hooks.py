@@ -3,7 +3,6 @@
 Tests hook registration, triggering, and notification hooks.
 """
 
-
 from tests.integration.conftest import (
     run_python_in_container,
 )
@@ -14,7 +13,7 @@ class TestHookSystem:
 
     def test_hook_events_defined(self, bootstrapped_container):
         """Test that all hook events are defined."""
-        python_code = '''
+        python_code = """
 from saha.hooks.base import HookEvent
 
 events = [e.value for e in HookEvent]
@@ -35,7 +34,7 @@ assert "quality_failed" in events
 
 print(f"Total events: {len(events)}")
 print("All events defined!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Hook events test failed: {output}"
@@ -43,7 +42,7 @@ print("All events defined!")
 
     def test_hook_registry_basics(self, bootstrapped_container):
         """Test hook registry registration and listing."""
-        python_code = '''
+        python_code = """
 from saha.hooks import HookRegistry
 from saha.hooks.base import Hook, HookEvent
 
@@ -73,7 +72,7 @@ print(f"Registered hooks: {hooks}")
 assert "test1" in hooks
 assert "test2" in hooks
 print("Hook registration works!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Hook registry test failed: {output}"
@@ -81,7 +80,7 @@ print("Hook registration works!")
 
     def test_hook_filtering_by_event(self, bootstrapped_container):
         """Test that hooks are only triggered for their events."""
-        python_code = '''
+        python_code = """
 from saha.hooks import HookRegistry
 from saha.hooks.base import Hook, HookEvent
 
@@ -125,7 +124,7 @@ assert len(all_hook.calls) == 4
 assert len(complete_hook.calls) == 1
 assert complete_hook.calls[0] == "loop_complete"
 print("Event filtering works!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Hook filtering test failed: {output}"
@@ -137,7 +136,7 @@ class TestLoggingHook:
 
     def test_logging_hook_logs_events(self, bootstrapped_container):
         """Test that logging hook logs events."""
-        python_code = '''
+        python_code = """
 import logging
 from io import StringIO
 from pathlib import Path
@@ -172,7 +171,7 @@ print(f"Log output: {log_output}")
 
 assert "test-task" in log_output or "loop_start" in log_output.lower()
 print("Logging hook works!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Logging hook test failed: {output}"
@@ -184,7 +183,7 @@ class TestNtfyHook:
 
     def test_ntfy_hook_builds_notification(self, bootstrapped_container):
         """Test that ntfy hook builds correct notification content."""
-        python_code = '''
+        python_code = """
 from pathlib import Path
 from datetime import datetime
 
@@ -224,7 +223,7 @@ print(f"Error - Priority: {priority}")
 assert priority == "urgent"
 
 print("Ntfy notification building works!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Ntfy hook test failed: {output}"
@@ -232,7 +231,7 @@ print("Ntfy notification building works!")
 
     def test_ntfy_hook_events_filter(self, bootstrapped_container):
         """Test that ntfy hook only triggers on completion/failure/stop events."""
-        python_code = '''
+        python_code = """
 from saha.hooks.notification import NtfyHook
 from saha.hooks.base import HookEvent
 
@@ -251,7 +250,7 @@ assert HookEvent.IMPLEMENTATION_START not in events
 assert HookEvent.QA_START not in events
 
 print("Ntfy event filtering correct!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Ntfy events test failed: {output}"
@@ -263,7 +262,7 @@ class TestCustomHooks:
 
     def test_custom_hook_implementation(self, bootstrapped_container):
         """Test that custom hooks can be implemented."""
-        python_code = '''
+        python_code = """
 from pathlib import Path
 from datetime import datetime
 from typing import Any
@@ -322,7 +321,7 @@ assert metrics_hook.metrics["qa_failures"] == 1
 assert metrics_hook.metrics["quality_failures"] == 1
 
 print("Custom hook works!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Custom hook test failed: {output}"

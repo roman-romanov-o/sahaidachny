@@ -3,7 +3,6 @@
 Tests each phase of the agentic loop: Implementation, QA, Code Quality, Manager, DoD.
 """
 
-
 from tests.integration.conftest import (
     copy_to_container,
     create_project_tarball,
@@ -98,13 +97,13 @@ class TestOrchestratorWithMockRunner:
 
     def test_mock_runner_available(self, bootstrapped_container):
         """Test that mock runner can be imported and used."""
-        python_code = '''
+        python_code = """
 from saha.runners import MockRunner
 
 runner = MockRunner()
 print(f"Runner available: {runner.is_available()}")
 print(f"Runner name: {runner.get_name()}")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Mock runner test failed: {output}"
@@ -113,7 +112,7 @@ print(f"Runner name: {runner.get_name()}")
 
     def test_state_manager_creates_state(self, bootstrapped_container):
         """Test that state manager can create and persist state."""
-        python_code = '''
+        python_code = """
 from pathlib import Path
 from saha.orchestrator.state import StateManager
 
@@ -131,7 +130,7 @@ print(f"Tools: {state.enabled_tools}")
 loaded = manager.load("test-task")
 print(f"Loaded task_id: {loaded.task_id}")
 print(f"Loaded tools: {loaded.enabled_tools}")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"State manager test failed: {output}"
@@ -145,7 +144,7 @@ print(f"Loaded tools: {loaded.enabled_tools}")
         tarball = create_project_tarball(clean_python_project)
         copy_to_container(bootstrapped_container, tarball)
 
-        python_code = '''
+        python_code = """
 from pathlib import Path
 from saha.tools import create_default_registry
 
@@ -157,7 +156,7 @@ print(f"Ruff issues: {len(result.issues)}")
 
 result = registry.run_tool("pytest", Path("tests/"))
 print(f"Pytest status: {result.status}")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Tool registry test failed: {output}"
@@ -166,7 +165,7 @@ print(f"Pytest status: {result.status}")
 
     def test_hook_registry_triggers_hooks(self, bootstrapped_container):
         """Test that hook registry can trigger hooks."""
-        python_code = '''
+        python_code = """
 from saha.hooks import HookRegistry
 from saha.hooks.base import Hook, HookEvent
 from saha.models.state import ExecutionState
@@ -200,7 +199,7 @@ registry.trigger("iteration_start", state=state)
 registry.trigger("loop_complete", state=state)
 
 print(f"Events triggered: {test_hook.triggered}")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Hook registry test failed: {output}"
@@ -214,7 +213,7 @@ class TestPhaseTransitions:
 
     def test_loop_phase_enum(self, bootstrapped_container):
         """Test that all loop phases are defined."""
-        python_code = '''
+        python_code = """
 from saha.models.state import LoopPhase
 
 phases = [p.value for p in LoopPhase]
@@ -231,7 +230,7 @@ assert "completed" in phases
 assert "failed" in phases
 
 print("All phases present!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Phase enum test failed: {output}"
@@ -239,7 +238,7 @@ print("All phases present!")
 
     def test_state_phase_transitions(self, bootstrapped_container):
         """Test that state can transition between phases."""
-        python_code = '''
+        python_code = """
 from pathlib import Path
 from datetime import datetime
 from saha.models.state import ExecutionState, LoopPhase
@@ -266,7 +265,7 @@ state.current_phase = LoopPhase.COMPLETED
 print(f"Completed phase: {state.current_phase.value}")
 
 print("Phase transitions work!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Phase transition test failed: {output}"

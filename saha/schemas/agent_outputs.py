@@ -23,19 +23,14 @@ class TDDPhases(BaseModel):
 
     interfaces_created: list[str] | None = Field(
         default=None,
-        description="Names of interfaces/models created (e.g., UserCreateRequest, UserResponse)"
+        description="Names of interfaces/models created (e.g., UserCreateRequest, UserResponse)",
     )
     tests_written: int | None = Field(
-        default=None,
-        description="Number of test cases written from test specs"
+        default=None, description="Number of test cases written from test specs"
     )
-    tests_passing: int | None = Field(
-        default=None,
-        description="Number of tests currently passing"
-    )
+    tests_passing: int | None = Field(default=None, description="Number of tests currently passing")
     tests_failing: int | None = Field(
-        default=None,
-        description="Number of tests currently failing (expected in Red phase)"
+        default=None, description="Number of tests currently failing (expected in Red phase)"
     )
 
 
@@ -45,23 +40,16 @@ class ImplementationOutput(BaseModel):
     Supports TDD workflow with optional tdd_phases tracking.
     """
 
-    status: ImplementationStatus = Field(
-        description="Overall implementation status"
-    )
-    summary: str = Field(
-        description="Brief description of TDD work done (1-2 sentences)"
-    )
+    status: ImplementationStatus = Field(description="Overall implementation status")
+    summary: str = Field(description="Brief description of TDD work done (1-2 sentences)")
     tdd_phases: TDDPhases | None = Field(
-        default=None,
-        description="TDD progress: interfaces created, tests written/passing"
+        default=None, description="TDD progress: interfaces created, tests written/passing"
     )
     notes: str | None = Field(
-        default=None,
-        description="Important observations, concerns, or decisions made"
+        default=None, description="Important observations, concerns, or decisions made"
     )
     next_steps: str | None = Field(
-        default=None,
-        description="What should be verified or implemented next"
+        default=None, description="What should be verified or implemented next"
     )
 
 
@@ -72,8 +60,7 @@ class QACheck(BaseModel):
     passed: bool = Field(description="Whether the criterion passed")
     details: str = Field(description="Details about the check")
     verification_method: str | None = Field(
-        default=None,
-        description="How the criterion was verified (pytest, playwright, manual)"
+        default=None, description="How the criterion was verified (pytest, playwright, manual)"
     )
 
 
@@ -89,23 +76,12 @@ class TestResults(BaseModel):
 class QAOutput(BaseModel):
     """Output schema for execution-qa agent."""
 
-    dod_achieved: bool = Field(
-        description="True only if ALL criteria pass"
-    )
-    summary: str = Field(
-        description="Brief status summary"
-    )
-    checks: list[QACheck] | None = Field(
-        default=None,
-        description="Individual criterion checks"
-    )
-    test_results: TestResults | None = Field(
-        default=None,
-        description="Test suite results"
-    )
+    dod_achieved: bool = Field(description="True only if ALL criteria pass")
+    summary: str = Field(description="Brief status summary")
+    checks: list[QACheck] | None = Field(default=None, description="Individual criterion checks")
+    test_results: TestResults | None = Field(default=None, description="Test suite results")
     fix_info: str | None = Field(
-        default=None,
-        description="Detailed fix instructions (required if dod_achieved: false)"
+        default=None, description="Detailed fix instructions (required if dod_achieved: false)"
     )
 
 
@@ -121,8 +97,7 @@ class QAPlaywrightOutput(QAOutput):
     """Output schema for execution-qa-playwright agent."""
 
     playwright_results: PlaywrightResults | None = Field(
-        default=None,
-        description="Summary of Playwright verification"
+        default=None, description="Summary of Playwright verification"
     )
 
 
@@ -139,8 +114,7 @@ class UpdateRecord(BaseModel):
     file: str = Field(description="Path to the updated file")
     change: str = Field(description="Description of the change made")
     verified: bool = Field(
-        default=False,
-        description="Whether the update was verified by re-reading"
+        default=False, description="Whether the update was verified by re-reading"
     )
 
 
@@ -155,26 +129,16 @@ class FailedUpdate(BaseModel):
 class ManagerOutput(BaseModel):
     """Output schema for execution-manager agent."""
 
-    status: ManagerStatus = Field(
-        description="Overall update status"
-    )
+    status: ManagerStatus = Field(description="Overall update status")
     updates_made: list[UpdateRecord] = Field(
         description="List of successful updates with verification"
     )
-    items_completed: list[str] = Field(
-        description="What was marked as done"
-    )
-    items_remaining: list[str] = Field(
-        description="What still needs to be done"
-    )
+    items_completed: list[str] = Field(description="What was marked as done")
+    items_remaining: list[str] = Field(description="What still needs to be done")
     failed_updates: list[FailedUpdate] | None = Field(
-        default=None,
-        description="Updates that couldn't be made"
+        default=None, description="Updates that couldn't be made"
     )
-    notes: str | None = Field(
-        default=None,
-        description="Observations about progress or issues"
-    )
+    notes: str | None = Field(default=None, description="Observations about progress or issues")
 
 
 class DoDConfidence(str, Enum):
@@ -188,21 +152,11 @@ class DoDConfidence(str, Enum):
 class DoDSummary(BaseModel):
     """Summary counts for DoD verification."""
 
-    user_stories_total: int | str = Field(
-        description="Total number of user stories"
-    )
-    user_stories_done: int | str = Field(
-        description="Number of completed user stories"
-    )
-    phases_total: int | str = Field(
-        description="Total number of implementation phases"
-    )
-    phases_done: int | str = Field(
-        description="Number of completed phases"
-    )
-    acceptance_criteria_total: int | str = Field(
-        description="Total number of acceptance criteria"
-    )
+    user_stories_total: int | str = Field(description="Total number of user stories")
+    user_stories_done: int | str = Field(description="Number of completed user stories")
+    phases_total: int | str = Field(description="Total number of implementation phases")
+    phases_done: int | str = Field(description="Number of completed phases")
+    acceptance_criteria_total: int | str = Field(description="Total number of acceptance criteria")
     acceptance_criteria_done: int | str = Field(
         description="Number of satisfied acceptance criteria"
     )
@@ -218,30 +172,17 @@ class ParsingIssue(BaseModel):
 class DoDOutput(BaseModel):
     """Output schema for execution-dod agent."""
 
-    task_complete: bool = Field(
-        description="True only if ALL work is done"
-    )
-    confidence: DoDConfidence = Field(
-        description="How certain of the determination"
-    )
-    summary: DoDSummary = Field(
-        description="Counts of stories, phases, criteria"
-    )
-    reasoning: str = Field(
-        description="Clear explanation of decision"
-    )
+    task_complete: bool = Field(description="True only if ALL work is done")
+    confidence: DoDConfidence = Field(description="How certain of the determination")
+    summary: DoDSummary = Field(description="Counts of stories, phases, criteria")
+    reasoning: str = Field(description="Clear explanation of decision")
     remaining_items: list[str] | None = Field(
-        default=None,
-        description="What still needs to be done"
+        default=None, description="What still needs to be done"
     )
     parsing_issues: list[ParsingIssue] | None = Field(
-        default=None,
-        description="Problems encountered reading artifacts"
+        default=None, description="Problems encountered reading artifacts"
     )
-    recommendation: str | None = Field(
-        default=None,
-        description="Suggested next steps"
-    )
+    recommendation: str | None = Field(default=None, description="Suggested next steps")
 
 
 class CodeQualityIssue(BaseModel):
@@ -269,38 +210,18 @@ class IgnoredIssue(BaseModel):
 class CodeQualityOutput(BaseModel):
     """Output schema for execution-code-quality agent."""
 
-    quality_passed: bool = Field(
-        description="True if no blocking issues"
-    )
-    files_analyzed: list[str] = Field(
-        description="List of files that were checked"
-    )
-    summary: str = Field(
-        description="Brief status summary"
-    )
-    issues: list[CodeQualityIssue] | None = Field(
-        default=None,
-        description="All issues found"
-    )
-    blocking_issues_count: int = Field(
-        default=0,
-        description="Count of issues that block passage"
-    )
-    ignored_issues_count: int = Field(
-        default=0,
-        description="Count of filtered/ignored issues"
-    )
+    quality_passed: bool = Field(description="True if no blocking issues")
+    files_analyzed: list[str] = Field(description="List of files that were checked")
+    summary: str = Field(description="Brief status summary")
+    issues: list[CodeQualityIssue] | None = Field(default=None, description="All issues found")
+    blocking_issues_count: int = Field(default=0, description="Count of issues that block passage")
+    ignored_issues_count: int = Field(default=0, description="Count of filtered/ignored issues")
     ignored_issues: list[IgnoredIssue] | None = Field(
-        default=None,
-        description="Details of why issues were ignored"
+        default=None, description="Details of why issues were ignored"
     )
-    tool_failures: list[str] | None = Field(
-        default=None,
-        description="Tools that couldn't run"
-    )
+    tool_failures: list[str] | None = Field(default=None, description="Tools that couldn't run")
     fix_info: str | None = Field(
-        default=None,
-        description="Detailed fix instructions (required if failed)"
+        default=None, description="Detailed fix instructions (required if failed)"
     )
 
 
@@ -321,50 +242,28 @@ class TestCritiqueIssue(BaseModel):
     file: str = Field(description="Path to the test file")
     line: int = Field(description="Line number")
     test_name: str = Field(description="Name of the problematic test")
-    pattern: str = Field(
-        description="Pattern detected (over_mocking, mocking_sut, placeholder)"
-    )
+    pattern: str = Field(description="Pattern detected (over_mocking, mocking_sut, placeholder)")
     description: str = Field(description="Description of the issue")
     mocks_count: int | None = Field(
-        default=None,
-        description="Number of mocks (for over_mocking pattern)"
+        default=None, description="Number of mocks (for over_mocking pattern)"
     )
 
 
 class TestCritiqueOutput(BaseModel):
     """Output schema for execution-test-critique agent."""
 
-    critique_passed: bool = Field(
-        description="True if score A/B/C, False if D/F"
-    )
-    test_quality_score: TestQualityScore = Field(
-        description="Grade A through F"
-    )
-    tests_analyzed: int = Field(
-        description="How many test functions analyzed"
-    )
-    summary: str = Field(
-        description="Brief assessment"
-    )
-    confidence: str | None = Field(
-        default=None,
-        description="How certain of the analysis"
-    )
-    hollow_tests: int | None = Field(
-        default=None,
-        description="Count of problematic tests"
-    )
+    critique_passed: bool = Field(description="True if score A/B/C, False if D/F")
+    test_quality_score: TestQualityScore = Field(description="Grade A through F")
+    tests_analyzed: int = Field(description="How many test functions analyzed")
+    summary: str = Field(description="Brief assessment")
+    confidence: str | None = Field(default=None, description="How certain of the analysis")
+    hollow_tests: int | None = Field(default=None, description="Count of problematic tests")
     issues: list[TestCritiqueIssue] | None = Field(
-        default=None,
-        description="Specific problems found"
+        default=None, description="Specific problems found"
     )
-    good_patterns: list[str] | None = Field(
-        default=None,
-        description="Positive patterns observed"
-    )
+    good_patterns: list[str] | None = Field(default=None, description="Positive patterns observed")
     fix_info: str | None = Field(
-        default=None,
-        description="Detailed fix instructions (required if failed)"
+        default=None, description="Detailed fix instructions (required if failed)"
     )
 
 

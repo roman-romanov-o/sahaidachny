@@ -11,7 +11,6 @@ The tests validate:
 - DoD verification
 """
 
-
 from tests.integration.conftest import (
     copy_to_container,
     create_project_tarball,
@@ -161,7 +160,7 @@ class TestAgenticLoopE2E:
         copy_to_container(bootstrapped_container, tarball)
 
         # Run the full agentic loop
-        python_code = '''
+        python_code = """
 import sys
 from pathlib import Path
 
@@ -228,7 +227,7 @@ except Exception as e:
     print(f"ERROR: {e}")
     import traceback
     traceback.print_exc()
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         print(f"Test output:\\n{output}")
@@ -245,7 +244,7 @@ except Exception as e:
         tarball = create_project_tarball(all_files)
         copy_to_container(bootstrapped_container, tarball)
 
-        python_code = '''
+        python_code = """
 import sys
 from pathlib import Path
 
@@ -303,7 +302,7 @@ print(f"IMPL_CALLS: {impl_calls}")
 assert state.current_iteration >= 3, f"Expected at least 3 iterations, got {state.current_iteration}"
 assert qa_calls >= 3, f"Expected at least 3 QA calls, got {qa_calls}"
 print("SUCCESS: QA failure recovery works")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         print(f"Test output:\\n{output}")
@@ -317,7 +316,7 @@ print("SUCCESS: QA failure recovery works")
         tarball = create_project_tarball(all_files)
         copy_to_container(bootstrapped_container, tarball)
 
-        python_code = '''
+        python_code = """
 import sys
 from pathlib import Path
 
@@ -368,7 +367,7 @@ print(f"QUALITY_CALLS: {quality_calls}")
 
 assert state.current_iteration >= 2, "Should have at least 2 iterations due to quality failure"
 print("SUCCESS: Code quality failure recovery works")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         print(f"Test output:\\n{output}")
@@ -383,7 +382,7 @@ print("SUCCESS: Code quality failure recovery works")
         copy_to_container(bootstrapped_container, tarball)
 
         # First: Create and save state
-        python_code_save = '''
+        python_code_save = """
 import sys
 from pathlib import Path
 from datetime import datetime
@@ -410,13 +409,13 @@ manager.save(state)
 print(f"SAVED_TASK: {state.task_id}")
 print(f"SAVED_PHASE: {state.current_phase.value}")
 print(f"SAVED_ITERATION: {state.current_iteration}")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code_save)
         assert exit_code == 0, f"State save failed: {output}"
         assert "SAVED_TASK: persistence-test" in output
 
         # Second: Load state in new process
-        python_code_load = '''
+        python_code_load = """
 import sys
 from pathlib import Path
 
@@ -438,7 +437,7 @@ assert state.current_iteration == 3
 assert state.context.get("fix_info") == "Test fix info"
 
 print("SUCCESS: State persistence works correctly")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code_load)
 
         print(f"Test output:\\n{output}")
@@ -452,7 +451,7 @@ print("SUCCESS: State persistence works correctly")
         tarball = create_project_tarball(all_files)
         copy_to_container(bootstrapped_container, tarball)
 
-        python_code = '''
+        python_code = """
 import sys
 from pathlib import Path
 
@@ -524,7 +523,7 @@ if errors:
     print(f"ERRORS: {errors}")
 else:
     print("SUCCESS: All agents received correct context")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         print(f"Test output:\\n{output}")
@@ -538,7 +537,7 @@ else:
         tarball = create_project_tarball(all_files)
         copy_to_container(bootstrapped_container, tarball)
 
-        python_code = '''
+        python_code = """
 import sys
 from pathlib import Path
 
@@ -591,7 +590,7 @@ assert state.current_iteration == MAX_ITER, f"Expected {MAX_ITER} iterations"
 assert state.current_phase.value != "completed", "Should not have completed"
 
 print("SUCCESS: Max iterations limit respected")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         print(f"Test output:\\n{output}")
@@ -651,7 +650,7 @@ class TestHookIntegration:
         tarball = create_project_tarball(all_files)
         copy_to_container(bootstrapped_container, tarball)
 
-        python_code = '''
+        python_code = """
 import sys
 from pathlib import Path
 
@@ -723,7 +722,7 @@ if found_all:
     print("SUCCESS: All expected hooks triggered")
 else:
     print(f"MISSING: Expected {expected_events}, got {tracker._events}")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         print(f"Test output:\\n{output}")

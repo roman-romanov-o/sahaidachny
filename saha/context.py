@@ -47,9 +47,7 @@ def set_current_task(task_id: str, settings: Settings | None = None) -> None:
     task_path = _find_task_dir(task_id, settings)
 
     if task_path is None:
-        raise ValueError(
-            f"No task directory found for '{task_id}' in {settings.task_base_path}"
-        )
+        raise ValueError(f"No task directory found for '{task_id}' in {settings.task_base_path}")
 
     settings.state_dir.mkdir(parents=True, exist_ok=True)
     context_file = settings.state_dir / CONTEXT_FILENAME

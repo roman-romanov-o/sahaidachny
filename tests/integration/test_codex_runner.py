@@ -51,14 +51,10 @@ def test_codex_skills_prompt_includes_skill_bodies(tmp_path: Path) -> None:
     (skills_dir / "ruff" / "SKILL.md").write_text(
         "---\nname: ruff\n---\n\n# Ruff Skill\n\nRuff details.\n"
     )
-    (skills_dir / "ty" / "SKILL.md").write_text(
-        "---\nname: ty\n---\n\n# Ty Skill\n\nTy details.\n"
-    )
+    (skills_dir / "ty" / "SKILL.md").write_text("---\nname: ty\n---\n\n# Ty Skill\n\nTy details.\n")
 
     agent_path = agents_dir / "execution-qa.md"
-    agent_path.write_text(
-        "---\nname: execution-qa\nskills: ruff, ty\n---\n\n# QA Agent\n\nBody.\n"
-    )
+    agent_path.write_text("---\nname: execution-qa\nskills: ruff, ty\n---\n\n# QA Agent\n\nBody.\n")
 
     runner = CodexRunner(working_dir=tmp_path)
     skills_prompt = runner._extract_skills_prompt(agent_path)
@@ -84,7 +80,7 @@ def test_codex_prompt_builds_with_system_and_context(tmp_path: Path) -> None:
     assert "Skill prompt" in prompt
     assert "\n---\n" in prompt
     assert "Do the thing" in prompt
-    assert "\"task_id\": \"task-01\"" in prompt
+    assert '"task_id": "task-01"' in prompt
 
 
 def test_file_change_tracker_detects_added_and_changed(tmp_path: Path) -> None:

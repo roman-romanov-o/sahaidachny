@@ -21,12 +21,8 @@ logger = logging.getLogger(__name__)
 # Patterns for content validation
 CODE_BLOCK_PATTERN = re.compile(r"```[\w]*\n[\s\S]*?```", re.MULTILINE)
 INLINE_CODE_PATTERN = re.compile(r"`[^`]+`")
-PYTHON_TEST_PATTERN = re.compile(
-    r"(def test_|@pytest\.|assert\s+|unittest\.|self\.assert)"
-)
-USER_STORY_PATTERN = re.compile(
-    r"as\s+a[n]?\s+.+,?\s*i\s+want\s+.+,?\s*so\s+that", re.IGNORECASE
-)
+PYTHON_TEST_PATTERN = re.compile(r"(def test_|@pytest\.|assert\s+|unittest\.|self\.assert)")
+USER_STORY_PATTERN = re.compile(r"as\s+a[n]?\s+.+,?\s*i\s+want\s+.+,?\s*so\s+that", re.IGNORECASE)
 ACCEPTANCE_CRITERIA_SECTION = re.compile(
     r"##?\s*(acceptance\s+criteria|given.*when.*then)", re.IGNORECASE
 )
@@ -413,9 +409,7 @@ class TaskVerifier:
         # Check for required sections
         required_sections = ["problem statement", "success criteria", "scope"]
         content_lower = content.lower()
-        missing_sections = [
-            s for s in required_sections if s not in content_lower
-        ]
+        missing_sections = [s for s in required_sections if s not in content_lower]
         if missing_sections:
             self.checks.append(
                 CheckResult(
@@ -474,7 +468,9 @@ class TaskVerifier:
             # Check for code blocks (stories should describe what, not how)
             code_blocks = CODE_BLOCK_PATTERN.findall(content)
             if code_blocks:
-                issues.append(f"{story_name}: has code blocks - stories shouldn't have implementation")
+                issues.append(
+                    f"{story_name}: has code blocks - stories shouldn't have implementation"
+                )
 
         if issues:
             # Report first 3 issues to avoid noise
@@ -540,7 +536,9 @@ class TaskVerifier:
             )
 
             if not has_test_cases and not has_expectations:
-                issues.append(f"{spec_name}: missing test case descriptions (TC-XXX-NNN) or expectations")
+                issues.append(
+                    f"{spec_name}: missing test case descriptions (TC-XXX-NNN) or expectations"
+                )
 
         if issues:
             display_issues = issues[:3]
@@ -589,16 +587,15 @@ class TaskVerifier:
 
             # Check for JSON/code blocks with schema examples
             code_blocks = CODE_BLOCK_PATTERN.findall(content)
-            has_json_schema = any(
-                "json" in block.lower() or "{" in block
-                for block in code_blocks
-            )
+            has_json_schema = any("json" in block.lower() or "{" in block for block in code_blocks)
             if not has_json_schema:
                 issues.append(f"{contract_name}: no JSON schema examples found")
 
             # Check for field type annotations
             has_field_types = bool(
-                re.search(r"(string|number|boolean|array|object|datetime|uuid|int|float)", content_lower)
+                re.search(
+                    r"(string|number|boolean|array|object|datetime|uuid|int|float)", content_lower
+                )
             )
             if not has_field_types:
                 issues.append(f"{contract_name}: missing field type annotations")
@@ -649,8 +646,7 @@ class TaskVerifier:
             # Check for objective/goal section
             content_lower = content.lower()
             has_objective = any(
-                term in content_lower
-                for term in ["objective", "goal", "purpose", "overview"]
+                term in content_lower for term in ["objective", "goal", "purpose", "overview"]
             )
             if not has_objective:
                 issues.append(f"{phase_name}: missing Objective/Goal section")

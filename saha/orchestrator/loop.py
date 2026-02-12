@@ -204,7 +204,12 @@ class AgenticLoop:
         if state.current_iteration == 0:
             return False
 
-        if state.current_phase in (LoopPhase.MANAGER, LoopPhase.DOD_CHECK, LoopPhase.COMPLETED, LoopPhase.FAILED):
+        if state.current_phase in (
+            LoopPhase.MANAGER,
+            LoopPhase.DOD_CHECK,
+            LoopPhase.COMPLETED,
+            LoopPhase.FAILED,
+        ):
             return False
 
         iteration = state.current_iteration_record
@@ -269,7 +274,9 @@ class AgenticLoop:
         # Phase 1: Implementation
         impl_result = self._run_implementation(state, config, plan_updater, plan_phase_path)
         if not impl_result.succeeded:
-            self._state_manager.fail_phase(state, LoopPhase.IMPLEMENTATION, impl_result.error or "Implementation failed")
+            self._state_manager.fail_phase(
+                state, LoopPhase.IMPLEMENTATION, impl_result.error or "Implementation failed"
+            )
             return state
 
         # Track files changed for progress visibility
@@ -283,13 +290,17 @@ class AgenticLoop:
         self._state_manager.save(state)
 
         # Phase 2: Test Critique (analyze test quality before running)
-        critique_result = self._run_test_critique(state, config, impl_result, plan_updater, plan_phase_path)
+        critique_result = self._run_test_critique(
+            state, config, impl_result, plan_updater, plan_phase_path
+        )
         if not critique_result.passed:
             # Loop back with fix info - tests are hollow
             state.context["fix_info"] = critique_result.fix_info
             iteration.fix_info = critique_result.fix_info
             self._state_manager.save(state)
-            self._hooks.trigger("test_critique_failed", state=state, critique_result=critique_result)
+            self._hooks.trigger(
+                "test_critique_failed", state=state, critique_result=critique_result
+            )
             return state
 
         iteration.test_critique_passed = True
@@ -307,7 +318,9 @@ class AgenticLoop:
         iteration.dod_achieved = True
 
         # Phase 4: Code Quality
-        quality_result = self._run_code_quality(state, config, impl_result, plan_updater, plan_phase_path)
+        quality_result = self._run_code_quality(
+            state, config, impl_result, plan_updater, plan_phase_path
+        )
         if not quality_result.passed:
             # Loop back with fix info
             state.context["fix_info"] = quality_result.fix_info
@@ -571,18 +584,20 @@ class AgenticLoop:
         else:
             parts.append("No specific test files identified. Search for test files in the project.")
 
-        parts.extend([
-            "",
-            "Analyze tests for hollow patterns:",
-            "- Over-mocking (>3 mocks per test)",
-            "- Mocking the System Under Test",
-            "- Placeholder tests (pass, ..., assert True)",
-            "- Assertions that only check mock calls, not outcomes",
-            "",
-            "Score A/B/C = proceed, D/F = block QA (tests are hollow)",
-            "",
-            'Return JSON: {"critique_passed": true/false, "test_quality_score": "A-F", "fix_info": "..."}',
-        ])
+        parts.extend(
+            [
+                "",
+                "Analyze tests for hollow patterns:",
+                "- Over-mocking (>3 mocks per test)",
+                "- Mocking the System Under Test",
+                "- Placeholder tests (pass, ..., assert True)",
+                "- Assertions that only check mock calls, not outcomes",
+                "",
+                "Score A/B/C = proceed, D/F = block QA (tests are hollow)",
+                "",
+                'Return JSON: {"critique_passed": true/false, "test_quality_score": "A-F", "fix_info": "..."}',
+            ]
+        )
 
         return "\n".join(parts)
 
@@ -646,8 +661,14 @@ class AgenticLoop:
 
         if result.success:
             # Parse structured output for DoD status
-            dod_achieved = result.structured_output.get("dod_achieved", False) if result.structured_output else False
-            fix_info = result.structured_output.get("fix_info") if result.structured_output else None
+            dod_achieved = (
+                result.structured_output.get("dod_achieved", False)
+                if result.structured_output
+                else False
+            )
+            fix_info = (
+                result.structured_output.get("fix_info") if result.structured_output else None
+            )
 
             self._state_manager.complete_phase(state, LoopPhase.QA)
             self._update_plan_progress(
@@ -819,16 +840,20 @@ class AgenticLoop:
             for f in files:
                 parts.append(f"  - {f}")
         else:
-            parts.append("No specific files provided. Analyze recent changes in the task directory.")
+            parts.append(
+                "No specific files provided. Analyze recent changes in the task directory."
+            )
 
-        parts.extend([
-            "",
-            "Run quality tools (ruff, ty, complexipy) on these files.",
-            "Filter false positives and pre-existing issues.",
-            "Only fail for genuine problems in the changed code.",
-            "",
-            'Return JSON: {"quality_passed": true/false, "fix_info": "..." if failed}',
-        ])
+        parts.extend(
+            [
+                "",
+                "Run quality tools (ruff, ty, complexipy) on these files.",
+                "Filter false positives and pre-existing issues.",
+                "Only fail for genuine problems in the changed code.",
+                "",
+                'Return JSON: {"quality_passed": true/false, "fix_info": "..." if failed}',
+            ]
+        )
 
         return "\n".join(parts)
 
@@ -1047,44 +1072,50 @@ class AgenticLoop:
 
         current_phase = state.context.get("current_plan_phase")
         if current_phase:
-            parts.extend([
-                f"Current plan phase: {current_phase}",
-                "",
-            ])
+            parts.extend(
+                [
+                    f"Current plan phase: {current_phase}",
+                    "",
+                ]
+            )
 
         if state.context.get("fix_info"):
             # Retry iteration - focus on fixing specific issues
-            parts.extend([
-                "## Fix Mode",
-                "",
-                "Previous iteration failed. Focus on fixing these issues:",
-                "",
-                state.context["fix_info"],
-                "",
-                "Run tests after each fix to verify progress.",
-            ])
+            parts.extend(
+                [
+                    "## Fix Mode",
+                    "",
+                    "Previous iteration failed. Focus on fixing these issues:",
+                    "",
+                    state.context["fix_info"],
+                    "",
+                    "Run tests after each fix to verify progress.",
+                ]
+            )
         else:
             # First iteration - full TDD cycle
-            parts.extend([
-                "## TDD Development Cycle",
-                "",
-                "Follow the TDD approach:",
-                "",
-                "### Phase 1: Interfaces",
-                f"- Read API contracts at `{config.task_path}/api-contracts/`",
-                "- Create Pydantic models and Protocol classes for the contracts",
-                "",
-                "### Phase 2: Tests (Red)",
-                f"- Read test specs at `{config.task_path}/test-specs/`",
-                "- Write pytest tests based on the specs",
-                "- Tests WILL fail initially (this is expected)",
-                "",
-                "### Phase 3: Implementation (Green)",
-                "- Implement code to make all tests pass",
-                "- Run tests after implementation to verify",
-                "",
-                "Read the task artifacts and follow TDD strictly.",
-            ])
+            parts.extend(
+                [
+                    "## TDD Development Cycle",
+                    "",
+                    "Follow the TDD approach:",
+                    "",
+                    "### Phase 1: Interfaces",
+                    f"- Read API contracts at `{config.task_path}/api-contracts/`",
+                    "- Create Pydantic models and Protocol classes for the contracts",
+                    "",
+                    "### Phase 2: Tests (Red)",
+                    f"- Read test specs at `{config.task_path}/test-specs/`",
+                    "- Write pytest tests based on the specs",
+                    "- Tests WILL fail initially (this is expected)",
+                    "",
+                    "### Phase 3: Implementation (Green)",
+                    "- Implement code to make all tests pass",
+                    "- Run tests after implementation to verify",
+                    "",
+                    "Read the task artifacts and follow TDD strictly.",
+                ]
+            )
 
         # NOTE: File changes are automatically extracted by the runner
         # (Claude tool metadata or filesystem diff), so we don't ask the LLM
@@ -1112,7 +1143,7 @@ class AgenticLoop:
             parts.append(f"\nRun verification scripts: {config.verification_scripts}")
 
         parts.append(
-            "\nReturn a JSON with: {\"dod_achieved\": true/false, \"fix_info\": \"...\" if not achieved}"
+            '\nReturn a JSON with: {"dod_achieved": true/false, "fix_info": "..." if not achieved}'
         )
 
         return "\n".join(parts)
@@ -1131,25 +1162,29 @@ class AgenticLoop:
 
         current_phase = state.context.get("current_plan_phase")
         if current_phase:
-            parts.extend([
-                f"Current plan phase: {current_phase}",
-                "",
-            ])
+            parts.extend(
+                [
+                    f"Current plan phase: {current_phase}",
+                    "",
+                ]
+            )
 
-        parts.extend([
-            "Your job:",
-            "1. Read the user stories at {task_path}/user-stories/",
-            "2. Read the implementation plan at {task_path}/implementation-plan/",
-            "3. Based on what was implemented this iteration, update:",
-            "   - Mark completed acceptance criteria with [x]",
-            "   - Update user story status if all criteria are met",
-            "   - Mark completed phases in the implementation plan",
-            "",
-            "Only mark items as done that are actually implemented.",
-            "Be conservative - if unsure, leave it as pending.",
-            "",
-            'Return JSON: {"status": "success", "updates_made": [...], "items_completed": [...]}',
-        ])
+        parts.extend(
+            [
+                "Your job:",
+                "1. Read the user stories at {task_path}/user-stories/",
+                "2. Read the implementation plan at {task_path}/implementation-plan/",
+                "3. Based on what was implemented this iteration, update:",
+                "   - Mark completed acceptance criteria with [x]",
+                "   - Update user story status if all criteria are met",
+                "   - Mark completed phases in the implementation plan",
+                "",
+                "Only mark items as done that are actually implemented.",
+                "Be conservative - if unsure, leave it as pending.",
+                "",
+                'Return JSON: {"status": "success", "updates_made": [...], "items_completed": [...]}',
+            ]
+        )
 
         return "\n".join(parts)
 

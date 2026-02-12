@@ -228,14 +228,16 @@ class GeminiRunner(Runner):
         parts = [prompt]
 
         if context:
-            parts.extend([
-                "",
-                "## Context",
-                "",
-                "```json",
-                json.dumps(context, indent=2, default=str),
-                "```",
-            ])
+            parts.extend(
+                [
+                    "",
+                    "## Context",
+                    "",
+                    "```json",
+                    json.dumps(context, indent=2, default=str),
+                    "```",
+                ]
+            )
 
         return "\n".join(parts)
 

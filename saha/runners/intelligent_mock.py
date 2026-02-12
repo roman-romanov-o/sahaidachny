@@ -63,11 +63,13 @@ class IntelligentMockRunner(Runner):
         agent_name = agent_spec_path.stem.replace("_", "-")
         context = context or {}
 
-        self._call_history.append({
-            "agent_name": agent_name,
-            "prompt": prompt,
-            "context": context,
-        })
+        self._call_history.append(
+            {
+                "agent_name": agent_name,
+                "prompt": prompt,
+                "context": context,
+            }
+        )
 
         logger.info(f"IntelligentMockRunner: Simulating agent {agent_name}")
 
@@ -94,11 +96,13 @@ class IntelligentMockRunner(Runner):
         timeout: int = 300,
     ) -> RunnerResult:
         """Run a simple prompt."""
-        self._call_history.append({
-            "type": "prompt",
-            "prompt": prompt,
-            "system_prompt": system_prompt,
-        })
+        self._call_history.append(
+            {
+                "type": "prompt",
+                "prompt": prompt,
+                "system_prompt": system_prompt,
+            }
+        )
         return RunnerResult.success_result("Mock prompt response")
 
     def is_available(self) -> bool:
@@ -157,7 +161,11 @@ class IntelligentMockRunner(Runner):
                     "fix_info": f"QA failure #{self._qa_calls}: Tests need to pass. "
                     "Please ensure all acceptance criteria are met.",
                     "checks": [
-                        {"criterion": "Tests pass", "passed": False, "details": "Some tests failing"},
+                        {
+                            "criterion": "Tests pass",
+                            "passed": False,
+                            "details": "Some tests failing",
+                        },
                     ],
                 },
             )
@@ -170,8 +178,16 @@ class IntelligentMockRunner(Runner):
             structured_output={
                 "dod_achieved": True,
                 "checks": [
-                    {"criterion": "Acceptance criteria met", "passed": True, "details": "All criteria satisfied"},
-                    {"criterion": "Tests pass", "passed": test_result, "details": "Test suite executed"},
+                    {
+                        "criterion": "Acceptance criteria met",
+                        "passed": True,
+                        "details": "All criteria satisfied",
+                    },
+                    {
+                        "criterion": "Tests pass",
+                        "passed": test_result,
+                        "details": "Test suite executed",
+                    },
                 ],
             },
         )

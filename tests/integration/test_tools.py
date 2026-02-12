@@ -3,7 +3,6 @@
 Tests that Ruff, ty, complexity, and pytest work correctly in clean environments.
 """
 
-
 from tests.integration.conftest import (
     run_in_container,
     run_python_in_container,
@@ -28,7 +27,9 @@ class TestRuffIntegration:
         )
 
         # Ruff should find issues (unused import, etc.)
-        assert "F401" in output or "unused" in output.lower(), f"Ruff should detect unused import: {output}"
+        assert "F401" in output or "unused" in output.lower(), (
+            f"Ruff should detect unused import: {output}"
+        )
 
     def test_ruff_passes_clean_code(self, bootstrapped_container, clean_python_project):
         """Test that Ruff passes on clean code."""
@@ -72,7 +73,9 @@ class TestComplexityIntegration:
         )
 
         # Should either show version or import successfully
-        assert exit_code == 0 or "complexipy" in output.lower(), f"complexipy should be available: {output}"
+        assert exit_code == 0 or "complexipy" in output.lower(), (
+            f"complexipy should be available: {output}"
+        )
 
 
 class TestPytestIntegration:
@@ -176,7 +179,7 @@ class TestToolRegistryIntegration:
 
     def test_tool_registry_lists_tools(self, bootstrapped_container):
         """Test that tool registry lists all tools."""
-        python_code = '''
+        python_code = """
 from saha.tools import create_default_registry
 
 registry = create_default_registry()
@@ -189,7 +192,7 @@ assert "complexity" in tools
 assert "pytest" in tools
 
 print("Tool registry works!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Tool registry test failed: {output}"
@@ -197,7 +200,7 @@ print("Tool registry works!")
 
     def test_tool_registry_checks_availability(self, bootstrapped_container):
         """Test that tools report their availability."""
-        python_code = '''
+        python_code = """
 from saha.tools import create_default_registry
 
 registry = create_default_registry()
@@ -208,7 +211,7 @@ for name in registry.list_all():
     print(f"{name}: available={available}")
 
 print("Availability check done!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Availability check failed: {output}"

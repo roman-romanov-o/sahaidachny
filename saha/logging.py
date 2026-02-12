@@ -14,36 +14,38 @@ from rich.logging import RichHandler
 from rich.theme import Theme
 
 # Cossack-inspired theme: bold blue/yellow palette with good terminal visibility
-SAHA_THEME = Theme({
-    # Log levels
-    "info": "bright_cyan",
-    "warning": "bright_yellow",
-    "error": "bold red",
-    "critical": "bold white on red",
-    "debug": "bright_black",
-    # Execution phases
-    "phase": "bold bright_blue",
-    "phase.border": "bright_blue",
-    "iteration": "bold bright_yellow",
-    "iteration.border": "bright_yellow",
-    "task": "bold bright_cyan",
-    # Tool calls - subdued, supporting information
-    "tool": "dim",
-    "tool.name": "cyan",
-    "tool.detail": "dim",
-    # Status indicators
-    "success": "bold bright_green",
-    "failure": "bold bright_red",
-    # Prompt display
-    "prompt": "white",
-    "prompt.header": "bold bright_yellow",
-    "prompt.border": "bright_yellow",
-    # Token usage
-    "usage.border": "bright_black",
-    "usage.label": "bold bright_cyan",
-    "usage.value": "white",
-    "usage.muted": "dim",
-})
+SAHA_THEME = Theme(
+    {
+        # Log levels
+        "info": "bright_cyan",
+        "warning": "bright_yellow",
+        "error": "bold red",
+        "critical": "bold white on red",
+        "debug": "bright_black",
+        # Execution phases
+        "phase": "bold bright_blue",
+        "phase.border": "bright_blue",
+        "iteration": "bold bright_yellow",
+        "iteration.border": "bright_yellow",
+        "task": "bold bright_cyan",
+        # Tool calls - subdued, supporting information
+        "tool": "dim",
+        "tool.name": "cyan",
+        "tool.detail": "dim",
+        # Status indicators
+        "success": "bold bright_green",
+        "failure": "bold bright_red",
+        # Prompt display
+        "prompt": "white",
+        "prompt.header": "bold bright_yellow",
+        "prompt.border": "bright_yellow",
+        # Token usage
+        "usage.border": "bright_black",
+        "usage.label": "bold bright_cyan",
+        "usage.value": "white",
+        "usage.muted": "dim",
+    }
+)
 
 # Shared console instance
 console = Console(theme=SAHA_THEME)
@@ -155,7 +157,9 @@ def log_phase_failed(phase: str, error: str) -> None:
 
 def log_iteration_start(iteration: int, max_iterations: int) -> None:
     """Log the start of a loop iteration."""
-    console.print(f"\n[iteration.border]━━━[/iteration.border] [iteration]Iteration {iteration}/{max_iterations}[/iteration] [iteration.border]━━━[/iteration.border]")
+    console.print(
+        f"\n[iteration.border]━━━[/iteration.border] [iteration]Iteration {iteration}/{max_iterations}[/iteration] [iteration.border]━━━[/iteration.border]"
+    )
 
 
 def log_iteration_complete(iteration: int, dod_achieved: bool, quality_passed: bool) -> None:
@@ -170,7 +174,9 @@ def log_iteration_complete(iteration: int, dod_achieved: bool, quality_passed: b
     else:
         status_parts.append("[failure]Quality ✗[/failure]")
 
-    console.print(f"[iteration.border]━━━[/iteration.border] [iteration]Iteration {iteration} complete[/iteration]: {' | '.join(status_parts)}")
+    console.print(
+        f"[iteration.border]━━━[/iteration.border] [iteration]Iteration {iteration} complete[/iteration]: {' | '.join(status_parts)}"
+    )
 
 
 def log_tool_call(tool_name: str, details: str = "") -> None:
@@ -213,18 +219,24 @@ def log_agent_prompt(agent_name: str, prompt: str) -> None:
         agent_name: Name of the agent (e.g., "Implementation", "QA").
         prompt: The full prompt text.
     """
-    console.print(f"[prompt.border]┌─[/prompt.border] [prompt.header]Prompt → {agent_name}[/prompt.header]")
+    console.print(
+        f"[prompt.border]┌─[/prompt.border] [prompt.header]Prompt → {agent_name}[/prompt.header]"
+    )
     # Indent each line of the prompt
     for line in prompt.split("\n"):
         console.print(f"[prompt.border]│[/prompt.border] [prompt]{line}[/prompt]")
     console.print(f"[prompt.border]└{'─' * 40}[/prompt.border]")
 
 
-def log_token_usage(phase: str, token_usage: dict[str, int] | None, tokens_used: int | None = None) -> None:
+def log_token_usage(
+    phase: str, token_usage: dict[str, int] | None, tokens_used: int | None = None
+) -> None:
     """Log token usage for a phase with a distinct visual section."""
     if not token_usage and (tokens_used is None or tokens_used <= 0):
         console.print(f"[usage.border]{'─' * 50}[/usage.border]")
-        console.print(f"[usage.label]Token usage ({phase})[/usage.label] [usage.muted]n/a[/usage.muted]")
+        console.print(
+            f"[usage.label]Token usage ({phase})[/usage.label] [usage.muted]n/a[/usage.muted]"
+        )
         return
 
     parts: list[str] = []
@@ -248,4 +260,6 @@ def log_token_usage(phase: str, token_usage: dict[str, int] | None, tokens_used:
 
     details = ", ".join(parts) if parts else "n/a"
     console.print(f"[usage.border]{'─' * 50}[/usage.border]")
-    console.print(f"[usage.label]Token usage ({phase})[/usage.label] [usage.value]{details}[/usage.value]")
+    console.print(
+        f"[usage.label]Token usage ({phase})[/usage.label] [usage.value]{details}[/usage.value]"
+    )

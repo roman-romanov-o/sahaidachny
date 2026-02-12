@@ -573,13 +573,17 @@ def test_token_usage_logged_for_each_stage(monkeypatch, tmp_path: Path) -> None:
 
     calls: list[tuple[str, dict[str, int] | None, int | None]] = []
 
-    def fake_log_token_usage(phase: str, token_usage: dict[str, int] | None, tokens_used: int | None = None) -> None:
+    def fake_log_token_usage(
+        phase: str, token_usage: dict[str, int] | None, tokens_used: int | None = None
+    ) -> None:
         calls.append((phase, token_usage, tokens_used))
 
     monkeypatch.setattr("saha.orchestrator.loop.log_token_usage", fake_log_token_usage)
 
     class TokenMockRunner(Runner):
-        def run_agent(self, agent_spec_path: Path, prompt: str, context=None, timeout: int = 300) -> RunnerResult:
+        def run_agent(
+            self, agent_spec_path: Path, prompt: str, context=None, timeout: int = 300
+        ) -> RunnerResult:
             agent = agent_spec_path.stem
             usage = {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8}
 
@@ -621,8 +625,12 @@ def test_token_usage_logged_for_each_stage(monkeypatch, tmp_path: Path) -> None:
                 )
             return RunnerResult.success_result("ok", token_usage=usage)
 
-        def run_prompt(self, prompt: str, system_prompt: str | None = None, timeout: int = 300) -> RunnerResult:
-            return RunnerResult.success_result("ok", token_usage={"input_tokens": 1, "output_tokens": 1})
+        def run_prompt(
+            self, prompt: str, system_prompt: str | None = None, timeout: int = 300
+        ) -> RunnerResult:
+            return RunnerResult.success_result(
+                "ok", token_usage={"input_tokens": 1, "output_tokens": 1}
+            )
 
         def is_available(self) -> bool:
             return True

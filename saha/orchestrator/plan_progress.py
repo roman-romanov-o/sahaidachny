@@ -53,7 +53,9 @@ class PlanProgressUpdater:
             stored = state.context.get("current_plan_phase") if state.context else None
             if stored:
                 candidate_path = Path(stored)
-                candidate = candidate_path if candidate_path.is_absolute() else (self._task_path / stored)
+                candidate = (
+                    candidate_path if candidate_path.is_absolute() else (self._task_path / stored)
+                )
                 candidate = candidate.resolve()
                 if candidate.exists():
                     updated = self._ensure_phase_context(state, candidate)

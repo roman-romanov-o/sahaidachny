@@ -3,7 +3,6 @@
 Tests state creation, persistence, loading, and lifecycle.
 """
 
-
 from tests.integration.conftest import (
     copy_to_container,
     create_project_tarball,
@@ -28,7 +27,9 @@ class TestStateManagement:
         )
 
         assert exit_code == 0, f"status command failed: {output}"
-        assert "No tasks" in output or "no task" in output.lower(), f"Should show no tasks: {output}"
+        assert "No tasks" in output or "no task" in output.lower(), (
+            f"Should show no tasks: {output}"
+        )
 
     def test_state_directory_created(self, bootstrapped_container):
         """Test that state directory is created on first run."""
@@ -174,7 +175,11 @@ enabled_tools: []
 iterations: []
 context: {{}}
 """
-        for task_id, phase in [("task-01", "implementation"), ("task-02", "qa"), ("task-03", "completed")]:
+        for task_id, phase in [
+            ("task-01", "implementation"),
+            ("task-02", "qa"),
+            ("task-03", "completed"),
+        ]:
             state_yaml = state_template.format(task_id=task_id, phase=phase)
             run_in_container(
                 bootstrapped_container,
@@ -210,7 +215,12 @@ class TestResumeCommand:
         )
 
         # Should fail (either no state, not found, or runner not available)
-        assert exit_code != 0 or "No saved state" in output or "not found" in output.lower() or "not available" in output.lower()
+        assert (
+            exit_code != 0
+            or "No saved state" in output
+            or "not found" in output.lower()
+            or "not available" in output.lower()
+        )
 
     def test_resume_rejects_completed_task(self, bootstrapped_container):
         """Test that resume rejects already completed tasks."""
@@ -236,4 +246,9 @@ context: {}
         )
 
         # Should fail (completed, or runner not available in container)
-        assert exit_code != 0 or "already" in output.lower() or "completed" in output.lower() or "not available" in output.lower()
+        assert (
+            exit_code != 0
+            or "already" in output.lower()
+            or "completed" in output.lower()
+            or "not available" in output.lower()
+        )

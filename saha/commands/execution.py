@@ -84,9 +84,13 @@ def _run_command(
     # Sync Claude artifacts (agents, etc.) before execution
     sync_result = sync_claude_artifacts()
     if sync_result.total_synced > 0:
-        typer.echo(f"Synced {sync_result.total_synced} missing agent(s): {', '.join(sync_result.agents_synced)}")
+        typer.echo(
+            f"Synced {sync_result.total_synced} missing agent(s): {', '.join(sync_result.agents_synced)}"
+        )
 
-    settings = _build_run_settings(verbose, dry_run, qa_runner, default_runner, dangerously_skip_permissions)
+    settings = _build_run_settings(
+        verbose, dry_run, qa_runner, default_runner, dangerously_skip_permissions
+    )
     resolved_path = _resolve_and_validate_task_path(task_id, task_path, settings)
     enabled_tools = tools.split(",") if tools else None
 
@@ -152,13 +156,19 @@ def _build_run_settings(
 
     if default_runner:
         agent_updates = {
-            "implementer": settings.agents.implementer.model_copy(update={"runner": default_runner}),
+            "implementer": settings.agents.implementer.model_copy(
+                update={"runner": default_runner}
+            ),
             "qa": settings.agents.qa.model_copy(update={"runner": default_runner}),
-            "code_quality": settings.agents.code_quality.model_copy(update={"runner": default_runner}),
+            "code_quality": settings.agents.code_quality.model_copy(
+                update={"runner": default_runner}
+            ),
             "manager": settings.agents.manager.model_copy(update={"runner": default_runner}),
             "dod": settings.agents.dod.model_copy(update={"runner": default_runner}),
         }
-        updated_agents = settings.agents.model_copy(update={"default_runner": default_runner, **agent_updates})
+        updated_agents = settings.agents.model_copy(
+            update={"default_runner": default_runner, **agent_updates}
+        )
         settings = settings.model_copy(update={"agents": updated_agents, "runner": default_runner})
 
     if qa_runner:
@@ -391,7 +401,9 @@ def register_execution_commands(app: typer.Typer) -> None:
         ] = None,
         task_path: Annotated[
             Path | None,
-            typer.Option("--path", "-p", help="Path to task folder (default: docs/tasks/<task_id>)"),
+            typer.Option(
+                "--path", "-p", help="Path to task folder (default: docs/tasks/<task_id>)"
+            ),
         ] = None,
         max_iterations: Annotated[
             int,
@@ -414,7 +426,10 @@ def register_execution_commands(app: typer.Typer) -> None:
         ] = None,
         default_runner: Annotated[
             str | None,
-            typer.Option("--runner", help="Default runner for execution agents: claude, codex, gemini, or mock"),
+            typer.Option(
+                "--runner",
+                help="Default runner for execution agents: claude, codex, gemini, or mock",
+            ),
         ] = None,
         dangerously_skip_permissions: Annotated[
             bool,
@@ -540,7 +555,9 @@ def register_execution_commands(app: typer.Typer) -> None:
     def use(
         task_id: Annotated[
             str | None,
-            typer.Argument(help="Task ID to set as current (e.g., task-01)", autocompletion=_complete_task_id),
+            typer.Argument(
+                help="Task ID to set as current (e.g., task-01)", autocompletion=_complete_task_id
+            ),
         ] = None,
         clear: Annotated[
             bool,

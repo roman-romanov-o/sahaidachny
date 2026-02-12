@@ -18,17 +18,19 @@ from saha.runners.usage import normalize_token_usage
 logger = logging.getLogger(__name__)
 
 # Content-first theme: model text is the star, tools are supporting context
-_STREAM_THEME = Theme({
-    # Model output - the main content, clean and readable
-    "model": "white",
-    "model.indicator": "dim cyan",  # Subtle transition marker
-    # Tools - subdued metadata, not competing with content
-    "tool": "dim",
-    "tool.name": "cyan",  # Visible but not screaming
-    "tool.warn": "yellow",
-    # Errors still need attention
-    "error": "bold red",
-})
+_STREAM_THEME = Theme(
+    {
+        # Model output - the main content, clean and readable
+        "model": "white",
+        "model.indicator": "dim cyan",  # Subtle transition marker
+        # Tools - subdued metadata, not competing with content
+        "tool": "dim",
+        "tool.name": "cyan",  # Visible but not screaming
+        "tool.warn": "yellow",
+        # Errors still need attention
+        "error": "bold red",
+    }
+)
 
 # Console for streaming output (separate from logging console)
 _stream_console = Console(theme=_STREAM_THEME, highlight=False)
@@ -224,7 +226,9 @@ class ClaudeRunner(Runner):
             if files_changed or files_added:
                 structured_output["files_changed"] = files_changed
                 structured_output["files_added"] = files_added
-                logger.info(f"Extracted file metadata: changed={files_changed}, added={files_added}")
+                logger.info(
+                    f"Extracted file metadata: changed={files_changed}, added={files_added}"
+                )
 
             return RunnerResult.success_result(
                 output=text_output,
@@ -277,7 +281,9 @@ class ClaudeRunner(Runner):
                     text_parts.append(result_text)
         return "\n".join(text_parts)
 
-    def _extract_token_usage_from_events(self, events: list[dict[str, Any]]) -> dict[str, int] | None:
+    def _extract_token_usage_from_events(
+        self, events: list[dict[str, Any]]
+    ) -> dict[str, int] | None:
         """Extract token usage from Claude Code event stream."""
         raw_candidates: list[dict[str, Any]] = []
 
@@ -398,7 +404,9 @@ class ClaudeRunner(Runner):
             if files_changed or files_added:
                 structured_output["files_changed"] = files_changed
                 structured_output["files_added"] = files_added
-                logger.info(f"Extracted file metadata: changed={files_changed}, added={files_added}")
+                logger.info(
+                    f"Extracted file metadata: changed={files_changed}, added={files_added}"
+                )
 
             return RunnerResult.success_result(
                 output=full_output,
@@ -597,7 +605,8 @@ class ClaudeRunner(Runner):
         cmd = [
             "claude",
             "--print",  # Print output without interactive mode
-            "--model", self._model,
+            "--model",
+            self._model,
         ]
 
         if self._skip_permissions:
@@ -623,7 +632,8 @@ class ClaudeRunner(Runner):
         cmd = [
             "claude",
             "--print",  # Print output without interactive mode
-            "--agent", agent_name,  # Use native agent
+            "--agent",
+            agent_name,  # Use native agent
         ]
 
         if self._skip_permissions:
@@ -646,14 +656,16 @@ class ClaudeRunner(Runner):
         parts = [prompt]
 
         if context:
-            parts.extend([
-                "",
-                "## Context",
-                "",
-                "```json",
-                json.dumps(context, indent=2, default=str),
-                "```",
-            ])
+            parts.extend(
+                [
+                    "",
+                    "## Context",
+                    "",
+                    "```json",
+                    json.dumps(context, indent=2, default=str),
+                    "```",
+                ]
+            )
 
         return "\n".join(parts)
 
@@ -731,20 +743,20 @@ class MockRunner(Runner):
         timeout: int = 300,
     ) -> RunnerResult:
         """Record the call and return a mock response."""
-        self._call_history.append({
-            "type": "agent",
-            "agent_spec_path": str(agent_spec_path),
-            "prompt": prompt,
-            "context": context,
-        })
+        self._call_history.append(
+            {
+                "type": "agent",
+                "agent_spec_path": str(agent_spec_path),
+                "prompt": prompt,
+                "context": context,
+            }
+        )
 
         key = agent_spec_path.stem
         if key in self._responses:
             return RunnerResult.success_result(self._responses[key])
 
-        return RunnerResult.success_result(
-            f"Mock response for agent: {agent_spec_path.name}"
-        )
+        return RunnerResult.success_result(f"Mock response for agent: {agent_spec_path.name}")
 
     def run_prompt(
         self,
@@ -753,11 +765,13 @@ class MockRunner(Runner):
         timeout: int = 300,
     ) -> RunnerResult:
         """Record the call and return a mock response."""
-        self._call_history.append({
-            "type": "prompt",
-            "prompt": prompt,
-            "system_prompt": system_prompt,
-        })
+        self._call_history.append(
+            {
+                "type": "prompt",
+                "prompt": prompt,
+                "system_prompt": system_prompt,
+            }
+        )
 
         return RunnerResult.success_result("Mock response")
 

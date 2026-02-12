@@ -57,10 +57,12 @@ class ComplexityTool(Tool):
                         complexity = int(part)
                         if complexity > threshold:
                             issues.append(line)
-                            metrics["high_complexity_functions"].append({
-                                "line": line,
-                                "complexity": complexity,
-                            })
+                            metrics["high_complexity_functions"].append(
+                                {
+                                    "line": line,
+                                    "complexity": complexity,
+                                }
+                            )
                         break
                     except ValueError:
                         continue

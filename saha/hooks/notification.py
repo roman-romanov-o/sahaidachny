@@ -78,7 +78,8 @@ class NtfyHook(Hook):
         if event == HookEvent.LOOP_COMPLETE:
             return (
                 f"Task Completed: {task_id}",
-                summary or f"Task {task_id} completed successfully after {iterations} iteration(s).",
+                summary
+                or f"Task {task_id} completed successfully after {iterations} iteration(s).",
                 "default",
                 ["white_check_mark", "robot"],
             )

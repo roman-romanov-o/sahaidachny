@@ -3,7 +3,6 @@
 Tests complete workflow execution with mock runner.
 """
 
-
 from tests.integration.conftest import (
     copy_to_container,
     create_project_tarball,
@@ -43,7 +42,7 @@ Add a divide function to the clean_project module.
         copy_to_container(bootstrapped_container, tarball)
 
         # Run the full orchestrator with mock runner
-        python_code = '''
+        python_code = """
 from pathlib import Path
 from saha.config.settings import Settings
 from saha.runners import MockRunner
@@ -93,7 +92,7 @@ except Exception as e:
     print(f"Error: {e}")
     import traceback
     traceback.print_exc()
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"E2E test failed: {output}"
@@ -109,7 +108,7 @@ except Exception as e:
         tarball = create_project_tarball(task_files)
         copy_to_container(bootstrapped_container, tarball)
 
-        python_code = '''
+        python_code = """
 from pathlib import Path
 from saha.config.settings import Settings
 from saha.runners import MockRunner
@@ -174,7 +173,7 @@ print(f"QA calls: {qa_calls}")
 assert state.current_iteration >= 2
 assert qa_calls >= 2
 print("QA failure handling works!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"QA failure test failed: {output}"
@@ -189,7 +188,7 @@ print("QA failure handling works!")
         tarball = create_project_tarball(task_files)
         copy_to_container(bootstrapped_container, tarball)
 
-        python_code = '''
+        python_code = """
 from pathlib import Path
 from saha.config.settings import Settings
 from saha.runners import MockRunner
@@ -240,7 +239,7 @@ print(f"Max allowed: {MAX_ITER}")
 assert state.current_iteration == MAX_ITER
 assert state.current_phase.value != "completed"
 print("Max iteration limit works!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Max iterations test failed: {output}"
@@ -260,7 +259,7 @@ class TestStatePersistence:
         copy_to_container(bootstrapped_container, tarball)
 
         # First: Create state
-        python_code_create = '''
+        python_code_create = """
 from pathlib import Path
 from saha.orchestrator.state import StateManager
 from saha.models.state import LoopPhase
@@ -282,12 +281,12 @@ manager.save(state)
 print(f"Created state: {state.task_id}")
 print(f"Phase: {state.current_phase.value}")
 print(f"Iteration: {state.current_iteration}")
-'''
+"""
         exit_code, _ = run_python_in_container(bootstrapped_container, python_code_create)
         assert exit_code == 0
 
         # Second: Load state in new Python process
-        python_code_load = '''
+        python_code_load = """
 from pathlib import Path
 from saha.orchestrator.state import StateManager
 
@@ -304,7 +303,7 @@ assert state.current_phase.value == "implementation"
 assert state.current_iteration == 2
 
 print("State persistence works!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code_load)
 
         assert exit_code == 0, f"State load test failed: {output}"
@@ -327,7 +326,7 @@ class TestAgentSpecifications:
 
     def test_agent_specs_readable(self, bootstrapped_container):
         """Test that agent specs can be read."""
-        python_code = '''
+        python_code = """
 from pathlib import Path
 
 agents_path = Path("claude_plugin/agents")
@@ -339,7 +338,7 @@ for agent_file in agents_path.glob("execution-*.md"):
     assert "##" in content
 
 print("All agent specs readable!")
-'''
+"""
         exit_code, output = run_python_in_container(bootstrapped_container, python_code)
 
         assert exit_code == 0, f"Agent spec read test failed: {output}"

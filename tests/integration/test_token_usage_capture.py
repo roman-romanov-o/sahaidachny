@@ -9,10 +9,12 @@ from saha.runners.codex import CodexRunner
 
 def test_claude_runner_extracts_token_usage(monkeypatch, tmp_path: Path) -> None:
     """ClaudeRunner should extract token usage from NDJSON output."""
-    ndjson = "\n".join([
-        '{"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}]}}',
-        '{"type":"result","result":"done","usage":{"input_tokens":12,"output_tokens":8}}',
-    ])
+    ndjson = "\n".join(
+        [
+            '{"type":"assistant","message":{"content":[{"type":"text","text":"Hello"}]}}',
+            '{"type":"result","result":"done","usage":{"input_tokens":12,"output_tokens":8}}',
+        ]
+    )
 
     class FakeProcess:
         def __init__(self) -> None:
@@ -46,7 +48,9 @@ def test_claude_runner_extracts_token_usage(monkeypatch, tmp_path: Path) -> None
 
 def test_codex_runner_extracts_token_usage(monkeypatch, tmp_path: Path) -> None:
     """CodexRunner should extract token usage from JSON output."""
-    output_payload = '{"response":"ok","usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}'
+    output_payload = (
+        '{"response":"ok","usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}'
+    )
 
     class FakeProcess:
         def __init__(self, cmd):

@@ -259,24 +259,28 @@ class CodexRunner(Runner):
             prelude_parts.append(skills_prompt.strip())
 
         if prelude_parts:
-            parts.extend([
-                "\n\n".join(prelude_parts),
-                "",
-                "---",
-                "",
-            ])
+            parts.extend(
+                [
+                    "\n\n".join(prelude_parts),
+                    "",
+                    "---",
+                    "",
+                ]
+            )
 
         parts.append(prompt)
 
         if context:
-            parts.extend([
-                "",
-                "## Context",
-                "",
-                "```json",
-                json.dumps(context, indent=2, default=str),
-                "```",
-            ])
+            parts.extend(
+                [
+                    "",
+                    "## Context",
+                    "",
+                    "```json",
+                    json.dumps(context, indent=2, default=str),
+                    "```",
+                ]
+            )
 
         return "\n".join(parts)
 
