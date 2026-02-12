@@ -93,11 +93,11 @@ def test_file_change_tracker_detects_added_and_changed(tmp_path: Path) -> None:
     target_dir.mkdir()
 
     initial_file = target_dir / "file.txt"
-    initial_file.write_text("one")
+    initial_file.write_text("original")
 
     tracker = _FileChangeTracker(target_dir)
 
-    initial_file.write_text("two")
+    initial_file.write_text("modified content")
     (target_dir / "new.txt").write_text("new")
 
     files_changed, files_added = tracker.diff()
