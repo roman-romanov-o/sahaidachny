@@ -48,22 +48,50 @@ It's a Claude Code plugin for planning plus a runner-agnostic execution loop tha
 
 ## Installation
 
-### Prerequisites
+### Complete Installation Guide (From Scratch)
 
-- Python 3.11+
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and configured (planning)
-- [Codex CLI](https://github.com/openai/codex) installed and configured (optional for execution)
+Don't have Python or any tools installed? No problem! Follow these steps:
 
-### Install from PyPI (Recommended)
+#### Step 1: Install Python 3.11+
+
+**macOS:**
+```bash
+# Using Homebrew (recommended)
+brew install python@3.11
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt update
+sudo apt install python3.11 python3.11-venv python3-pip
+```
+
+**Windows:**
+Download from [python.org](https://www.python.org/downloads/) (version 3.11 or higher)
+
+#### Step 2: Install uv (Fast Python Package Manager)
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Restart your terminal after installation.
+
+#### Step 3: Install Sahaidachny
+
+```bash
+uv tool install sahaidachny
+```
+
+**Alternative options:**
 
 Using pipx (recommended for CLI tools):
 ```bash
 pipx install sahaidachny
-```
-
-Using uv:
-```bash
-uv tool install sahaidachny
 ```
 
 Using pip:
@@ -71,20 +99,50 @@ Using pip:
 pip install sahaidachny
 ```
 
-### Install from Source
+#### Step 4: Install Claude Code CLI
 
-For development or latest changes:
+Sahaidachny requires Claude Code for the planning phase:
+
+```bash
+# macOS/Linux
+curl -fsSL https://install.claude.ai | sh
+
+# Verify installation
+claude --version
+```
+
+For Windows or detailed instructions, see: https://docs.anthropic.com/en/docs/claude-code
+
+#### Step 5: Verify Everything Works
+
+```bash
+# Check Sahaidachny
+saha version
+saha tools
+
+# Check Claude Code
+claude --version
+```
+
+You should see version information for both tools. You're ready to go! 🚀
+
+### Optional: Install Quality Tools
+
+For the execution loop to run code quality checks, install these tools:
+
+```bash
+uv tool install ruff          # Linting and formatting
+uv tool install ty            # Type checking
+uv tool install complexipy    # Complexity analysis
+uv pip install pytest         # Testing
+```
+
+### Install from Source (For Development)
+
 ```bash
 git clone https://github.com/roman-romanov-o/sahaidachny.git
 cd sahaidachny
 uv tool install .
-```
-
-### Verify Installation
-
-```bash
-saha version
-saha tools
 ```
 
 ## Quick Start
