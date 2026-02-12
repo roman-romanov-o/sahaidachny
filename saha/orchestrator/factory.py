@@ -68,7 +68,7 @@ def create_runner_registry(settings: Settings) -> RunnerRegistry:
     }
 
     for agent_name, config in agent_mapping.items():
-        fields_set = getattr(config, "model_fields_set", set())
+        fields_set: set[str] = getattr(config, "model_fields_set", set())
         runner_name = config.runner if "runner" in fields_set else default_type.value
         registry.configure_agent(
             AgentConfig(

@@ -79,7 +79,9 @@ class AgentsConfig(BaseSettings):
         key = name_map.get(agent_name, agent_name.replace("execution-", "").replace("-", "_"))
 
         if hasattr(self, key):
-            return getattr(self, key)
+            config = getattr(self, key)
+            assert isinstance(config, AgentRunnerConfig)
+            return config
 
         # Return default config with default runner
         return AgentRunnerConfig(runner=self.default_runner)

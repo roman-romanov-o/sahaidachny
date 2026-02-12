@@ -124,8 +124,8 @@ class IntelligentMockRunner(Runner):
         if fix_info:
             logger.info(f"Fix info received: {fix_info[:100]}...")
 
-        files_changed = []
-        files_added = []
+        files_changed: list[str] = []
+        files_added: list[str] = []
 
         if self._make_code_changes:
             files_changed, files_added = self._make_actual_changes(task_path, fix_info)
@@ -265,8 +265,8 @@ class IntelligentMockRunner(Runner):
         Returns:
             Tuple of (files_changed, files_added).
         """
-        files_changed = []
-        files_added = []
+        files_changed: list[str] = []
+        files_added: list[str] = []
 
         # Read task description to understand what to implement
         task_desc_path = self._working_dir / task_path / "task-description.md"

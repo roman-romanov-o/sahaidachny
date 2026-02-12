@@ -532,8 +532,8 @@ class ClaudeRunner(Runner):
                 return "/".join(parts[-2:]) if len(parts) > 2 else path
 
         elif tool_name == "Glob":
-            pattern = params.get("pattern", "")
-            path = params.get("path", "")
+            pattern = str(params.get("pattern", ""))
+            path = str(params.get("path", ""))
             if path:
                 return f"{pattern} in {path}"
             return pattern
@@ -544,8 +544,8 @@ class ClaudeRunner(Runner):
             return f'"{pattern}" in {path}'
 
         elif tool_name == "Bash":
-            cmd = params.get("command", "")
-            desc = params.get("description", "")
+            cmd = str(params.get("command", ""))
+            desc = str(params.get("description", ""))
             if desc:
                 return desc
             # Show truncated command

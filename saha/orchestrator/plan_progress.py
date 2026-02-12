@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-import re
 
 from saha.models.state import ExecutionState, LoopPhase
-
 
 _PHASE_TO_STAGE = {
     LoopPhase.IMPLEMENTATION: "Implementation",

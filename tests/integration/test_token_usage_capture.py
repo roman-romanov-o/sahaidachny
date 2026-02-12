@@ -1,8 +1,7 @@
 """Integration tests for token usage extraction in CLI runners."""
 
-from pathlib import Path
-
 import subprocess
+from pathlib import Path
 
 from saha.runners.claude import ClaudeRunner
 from saha.runners.codex import CodexRunner

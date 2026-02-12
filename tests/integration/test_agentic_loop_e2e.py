@@ -11,7 +11,6 @@ The tests validate:
 - DoD verification
 """
 
-from pathlib import Path
 
 from tests.integration.conftest import (
     copy_to_container,
@@ -19,7 +18,6 @@ from tests.integration.conftest import (
     run_in_container,
     run_python_in_container,
 )
-
 
 # Sample task files that exercise the full Sahaidachny schema
 SAMPLE_TASK_FILES = {
