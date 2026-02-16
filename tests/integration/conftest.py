@@ -1,11 +1,16 @@
 """Shared fixtures for integration tests."""
 
+import os
 import tarfile
 from io import BytesIO
 from pathlib import Path
 
 import pytest
 from testcontainers.core.container import DockerContainer
+
+# Disable Ryuk (reaper) to avoid port conflicts
+# Ryuk is used for cleanup, but pytest will clean up containers anyway
+os.environ["TESTCONTAINERS_RYUK_DISABLED"] = "true"
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 

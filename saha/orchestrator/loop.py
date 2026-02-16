@@ -1,9 +1,12 @@
 """Main agentic loop orchestrator."""
 
 import logging
+import signal
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from saha.config.settings import Settings
 from saha.hooks.registry import HookRegistry
@@ -35,6 +38,40 @@ from saha.runners.registry import RunnerRegistry
 from saha.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
+
+
+class InterruptHandler:
+    """Handles interrupt signals to enable graceful shutdown."""
+
+    def __init__(self) -> None:
+        self.interrupt_count = 0
+        self.original_handler: Any = None
+
+    def __enter__(self) -> "InterruptHandler":
+        """Set up signal handler."""
+        self.interrupt_count = 0
+        self.original_handler = signal.signal(signal.SIGINT, self._signal_handler)
+        return self
+
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
+        """Restore original signal handler."""
+        if self.original_handler is not None:
+            signal.signal(signal.SIGINT, self.original_handler)
+
+    def _signal_handler(self, signum: int, frame: object) -> None:
+        """Handle interrupt signal."""
+        self.interrupt_count += 1
+        if self.interrupt_count == 1:
+            console.print("\n[yellow]⚠ Interrupt received. Finishing current phase...[/yellow]")
+            console.print("[yellow]Press Ctrl+C again to force quit immediately.[/yellow]")
+            raise KeyboardInterrupt
+        elif self.interrupt_count >= 2:
+            console.print("\n[red]⚠ Force quit requested. Exiting immediately...[/red]")
+            sys.exit(1)
+
+    def was_interrupted(self) -> bool:
+        """Check if an interrupt was received."""
+        return self.interrupt_count > 0
 
 
 @dataclass
@@ -135,20 +172,25 @@ class AgenticLoop:
         console.print(f"[task]{'═' * 50}[/task]")
         self._hooks.trigger("loop_start", state=state)
 
-        try:
-            while self._should_continue(state):
-                state = self._run_iteration(state, config)
+        with InterruptHandler() as interrupt_handler:
+            try:
+                while self._should_continue(state):
+                    # Check for interrupt before starting new iteration
+                    if interrupt_handler.was_interrupted():
+                        raise KeyboardInterrupt
 
-            self._finalize(state)
+                    state = self._run_iteration(state, config, interrupt_handler)
 
-        except KeyboardInterrupt:
-            logger.warning("Interrupt received. Stopping agentic loop gracefully.")
-            self._handle_interrupt(state, config)
+                self._finalize(state)
 
-        except Exception as e:
-            logger.exception(f"Loop failed with error: {e}")
-            self._state_manager.mark_failed(state, str(e))
-            self._hooks.trigger("loop_error", state=state, error=str(e))
+            except KeyboardInterrupt:
+                logger.warning("Interrupt received. Stopping agentic loop gracefully.")
+                self._handle_interrupt(state, config, interrupt_handler)
+
+            except Exception as e:
+                logger.exception(f"Loop failed with error: {e}")
+                self._state_manager.mark_failed(state, str(e))
+                self._hooks.trigger("loop_error", state=state, error=str(e))
 
         return state
 
@@ -183,18 +225,27 @@ class AgenticLoop:
 
         return True
 
-    def _handle_interrupt(self, state: ExecutionState, config: LoopConfig) -> None:
+    def _handle_interrupt(
+        self, state: ExecutionState, config: LoopConfig, interrupt_handler: InterruptHandler
+    ) -> None:
         """Handle a user interrupt (Ctrl+C) gracefully."""
         reason = "Interrupted by user"
 
         # Attempt to update task status with manager, unless already in/after manager
-        try:
-            if self._should_run_manager_on_interrupt(state):
-                self._run_manager(state, config, None, None)
-        except KeyboardInterrupt:
-            logger.warning("Interrupt received during manager cleanup. Skipping manager update.")
-        except Exception as e:
-            logger.warning(f"Manager update during interrupt failed: {e}")
+        # Use a short timeout to avoid hanging during cleanup
+        if self._should_run_manager_on_interrupt(state):
+            if interrupt_handler.interrupt_count >= 2:
+                logger.warning("Force quit requested. Skipping manager update.")
+            else:
+                console.print(
+                    "[yellow]Updating task artifacts (press Ctrl+C again to skip)...[/yellow]"
+                )
+                try:
+                    self._run_manager(state, config, None, None, timeout=10)
+                except KeyboardInterrupt:
+                    logger.warning("Manager update skipped by user.")
+                except Exception as e:
+                    logger.warning(f"Manager update during interrupt failed: {e}")
 
         self._state_manager.mark_stopped(state, reason)
         self._finalize(state)
@@ -263,6 +314,7 @@ class AgenticLoop:
         self,
         state: ExecutionState,
         config: LoopConfig,
+        interrupt_handler: InterruptHandler,
     ) -> ExecutionState:
         """Run a single iteration of the loop."""
         iteration = state.start_iteration()
@@ -278,6 +330,10 @@ class AgenticLoop:
                 state, LoopPhase.IMPLEMENTATION, impl_result.error or "Implementation failed"
             )
             return state
+
+        # Check for interrupt after implementation
+        if interrupt_handler.was_interrupted():
+            raise KeyboardInterrupt
 
         # Track files changed for progress visibility
         if impl_result.structured_output:
@@ -303,6 +359,10 @@ class AgenticLoop:
             )
             return state
 
+        # Check for interrupt after test critique
+        if interrupt_handler.was_interrupted():
+            raise KeyboardInterrupt
+
         iteration.test_critique_passed = True
 
         # Phase 3: QA Verification
@@ -314,6 +374,10 @@ class AgenticLoop:
             self._state_manager.save(state)
             self._hooks.trigger("qa_failed", state=state, qa_result=qa_result)
             return state
+
+        # Check for interrupt after QA
+        if interrupt_handler.was_interrupted():
+            raise KeyboardInterrupt
 
         iteration.dod_achieved = True
 
@@ -329,10 +393,18 @@ class AgenticLoop:
             self._hooks.trigger("quality_failed", state=state, quality_result=quality_result)
             return state
 
+        # Check for interrupt after code quality
+        if interrupt_handler.was_interrupted():
+            raise KeyboardInterrupt
+
         iteration.quality_passed = True
 
         # Phase 5: Manager updates
         self._run_manager(state, config, plan_updater, plan_phase_path)
+
+        # Check for interrupt after manager
+        if interrupt_handler.was_interrupted():
+            raise KeyboardInterrupt
 
         # Phase 6: DoD Check
         task_complete = self._run_dod_check(state, config, plan_updater, plan_phase_path)
@@ -373,6 +445,7 @@ class AgenticLoop:
         agent_name = "execution-implementer"
         agent_path = self._get_agent_path("execution_implementer")
         runner = self._get_runner_for_agent(agent_name)
+        console.print(f"[cyan]→ Using runner: {runner.get_name()}[/cyan]")
 
         # Build context for the agent
         context = {
@@ -454,6 +527,7 @@ class AgenticLoop:
         agent_name = "execution-test-critique"
         agent_path = self._get_agent_path("execution_test_critique")
         runner = self._get_runner_for_agent(agent_name)
+        console.print(f"[cyan]→ Using runner: {runner.get_name()}[/cyan]")
 
         if not agent_path.exists():
             logger.warning(f"Test critique agent not found at {agent_path}, skipping")
@@ -638,6 +712,7 @@ class AgenticLoop:
             agent_path = self._get_agent_path("execution_qa")
 
         runner = self._get_runner_for_agent(agent_name)
+        console.print(f"[cyan]→ Using runner: {runner.get_name()}[/cyan]")
 
         context = {
             "task_id": config.task_id,
@@ -731,6 +806,7 @@ class AgenticLoop:
         agent_name = "execution-code-quality"
         agent_path = self._get_agent_path("execution_code_quality")
         runner = self._get_runner_for_agent(agent_name)
+        console.print(f"[cyan]→ Using runner: {runner.get_name()}[/cyan]")
 
         # Extract changed files from implementation output
         files_changed = []
@@ -863,6 +939,7 @@ class AgenticLoop:
         config: LoopConfig,
         plan_updater: PlanProgressUpdater | None,
         plan_phase_path: Path | None,
+        timeout: int = 300,
     ) -> None:
         """Run the manager subagent to update task status."""
         self._state_manager.update_phase(state, LoopPhase.MANAGER)
@@ -880,6 +957,7 @@ class AgenticLoop:
         agent_name = "execution-manager"
         agent_path = self._get_agent_path("execution_manager")
         runner = self._get_runner_for_agent(agent_name)
+        console.print(f"[cyan]→ Using runner: {runner.get_name()}[/cyan]")
 
         if not agent_path.exists():
             logger.warning(f"Manager agent not found at {agent_path}, skipping")
@@ -904,7 +982,7 @@ class AgenticLoop:
         prompt = self._build_manager_prompt(state, config)
         log_agent_prompt("Manager", prompt)
 
-        result = runner.run_agent(agent_path, prompt, context)
+        result = runner.run_agent(agent_path, prompt, context, timeout=timeout)
         log_token_usage("Manager", result.token_usage, result.tokens_used)
 
         if result.success:
@@ -959,6 +1037,7 @@ class AgenticLoop:
         agent_name = "execution-dod"
         agent_path = self._get_agent_path("execution_dod")
         runner = self._get_runner_for_agent(agent_name)
+        console.print(f"[cyan]→ Using runner: {runner.get_name()}[/cyan]")
 
         if not agent_path.exists():
             logger.error(f"DoD agent not found at {agent_path}")

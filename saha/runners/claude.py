@@ -147,7 +147,8 @@ class ClaudeRunner(Runner):
         timeout: int,
     ) -> RunnerResult:
         """Execute a claude CLI command and return the result."""
-        logger.debug(f"Executing command: {' '.join(cmd)}")
+        logger.info(f"Running agent with {self.get_name()}")
+        logger.info(f"Command: {' '.join(cmd)}")
 
         if self._stream_output:
             return self._execute_with_streaming(cmd, timeout)
@@ -187,10 +188,12 @@ class ClaudeRunner(Runner):
                     exit_code=124,
                 )
             except KeyboardInterrupt:
+                logger.info("KeyboardInterrupt during Claude execution, terminating process...")
                 process.terminate()
                 try:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
+                    logger.warning("Process did not terminate, killing it...")
                     process.kill()
                 raise
 
@@ -340,39 +343,58 @@ class ClaudeRunner(Runner):
             collected_events: list[dict[str, Any]] = []  # Collect all events for file tracking
             tool_state: dict[str, Any] = {}  # Track current tool call state
             stderr = ""
+            interrupted = False
 
             try:
                 # Stream and parse NDJSON output in real-time
                 if process.stdout:
-                    for line in process.stdout:
-                        line = line.strip()
-                        if not line:
-                            continue
+                    try:
+                        for line in process.stdout:
+                            line = line.strip()
+                            if not line:
+                                continue
 
-                        try:
-                            event = json.loads(line)
-                            # Only handle dict events, skip arrays/primitives
-                            if isinstance(event, dict):
-                                collected_events.append(event)
-                                self._handle_stream_event(event, collected_text, tool_state)
-                        except json.JSONDecodeError:
-                            # Non-JSON line, just print it
-                            print(line)
+                            try:
+                                event = json.loads(line)
+                                # Only handle dict events, skip arrays/primitives
+                                if isinstance(event, dict):
+                                    collected_events.append(event)
+                                    self._handle_stream_event(event, collected_text, tool_state)
+                            except json.JSONDecodeError:
+                                # Non-JSON line, just print it
+                                print(line)
+                    except KeyboardInterrupt:
+                        _stream_console.print("\n[yellow]⚠ Interrupt received, terminating Claude...[/yellow]")
+                        interrupted = True
 
                 # Collect stderr
-                if process.stderr:
+                if process.stderr and not interrupted:
                     stderr = process.stderr.read()
                     if stderr:
                         sys.stderr.write(stderr)
                         sys.stderr.flush()
 
-                process.wait(timeout=timeout)
+                if not interrupted:
+                    process.wait(timeout=timeout)
+                else:
+                    # Terminate the process
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+
+                if interrupted:
+                    raise KeyboardInterrupt
             except KeyboardInterrupt:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
+                if not interrupted:
+                    # If we caught it outside the streaming loop
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
                 raise
 
             # Combine collected text as the output

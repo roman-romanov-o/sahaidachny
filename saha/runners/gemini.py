@@ -4,13 +4,22 @@ This module provides a runner for Google's Gemini CLI, allowing
 Gemini models to be used as an alternative to Claude for certain agents.
 """
 
-import json
+import logging
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
 
+from saha.runners._utils import (
+    FileChangeTracker,
+    build_prompt_with_context,
+    build_skills_prompt,
+    extract_system_prompt,
+    try_parse_json,
+)
 from saha.runners.base import Runner, RunnerResult
+
+logger = logging.getLogger(__name__)
 
 
 class GeminiRunner(Runner):
@@ -53,7 +62,7 @@ class GeminiRunner(Runner):
         """Run an agent-style prompt via Gemini CLI.
 
         Unlike Claude Code, Gemini CLI doesn't have native agent support,
-        so we build the agent behavior into the system prompt.
+        so we embed the agent spec content (and referenced skills) into the prompt.
 
         Args:
             agent_spec_path: Path to agent spec (used to extract system prompt).
@@ -64,13 +73,11 @@ class GeminiRunner(Runner):
         Returns:
             RunnerResult with Gemini's output.
         """
-        # Extract system prompt from agent spec if it exists
-        system_prompt = self._extract_system_prompt(agent_spec_path)
+        system_prompt = extract_system_prompt(agent_spec_path)
+        skills_prompt = build_skills_prompt(agent_spec_path, self._working_dir)
+        full_prompt = build_prompt_with_context(prompt, context, system_prompt, skills_prompt)
 
-        # Build full prompt with context
-        full_prompt = self._build_prompt_with_context(prompt, context)
-
-        return self._run(full_prompt, system_prompt, timeout)
+        return self._run(full_prompt, timeout)
 
     def run_prompt(
         self,
@@ -88,25 +95,29 @@ class GeminiRunner(Runner):
         Returns:
             RunnerResult with the output.
         """
-        return self._run(prompt, system_prompt, timeout)
+        full_prompt = build_prompt_with_context(prompt, None, system_prompt)
+        return self._run(full_prompt, timeout)
 
     def _run(
         self,
         prompt: str,
-        system_prompt: str | None = None,
         timeout: int = 300,
     ) -> RunnerResult:
         """Execute the Gemini CLI command.
 
+        Uses FileChangeTracker to detect file modifications during execution.
+
         Args:
-            prompt: User prompt.
-            system_prompt: System instructions.
+            prompt: Full prompt (with system prompt, skills, and context embedded).
             timeout: Maximum execution time.
 
         Returns:
             RunnerResult from execution.
         """
-        cmd = self._build_command(prompt, system_prompt)
+        tracker = FileChangeTracker(self._working_dir)
+        cmd = self._build_command(prompt)
+        logger.info(f"Running agent with {self.get_name()}")
+        logger.info(f"Command: {' '.join(cmd)}")
 
         try:
             process = subprocess.Popen(
@@ -142,9 +153,16 @@ class GeminiRunner(Runner):
                     exit_code=process.returncode,
                 )
 
+            structured_output = try_parse_json(stdout) or {}
+
+            files_changed, files_added = tracker.diff()
+            if files_changed or files_added:
+                structured_output["files_changed"] = files_changed
+                structured_output["files_added"] = files_added
+
             return RunnerResult.success_result(
                 output=stdout,
-                structured_output=self._try_parse_json(stdout),
+                structured_output=structured_output if structured_output else None,
             )
 
         except subprocess.TimeoutExpired:
@@ -179,7 +197,9 @@ class GeminiRunner(Runner):
         - gemini -p "prompt" for simple prompts
         - gemini --model <model> for model selection
         - gemini --sandbox for sandboxed mode
-        - gemini --yolo for auto-accepting tool calls
+
+        Note: The --yolo flag does NOT exist in Gemini CLI.
+        Non-interactive mode is the default for -p flag.
 
         Args:
             prompt: User prompt to send.
@@ -198,9 +218,6 @@ class GeminiRunner(Runner):
         if self._sandbox:
             cmd.append("--sandbox")
 
-        # Non-interactive mode - auto-accept tool calls
-        cmd.append("--yolo")
-
         # Combine system prompt and user prompt
         if system_prompt:
             full_prompt = f"{system_prompt}\n\n---\n\n{prompt}"
@@ -210,92 +227,3 @@ class GeminiRunner(Runner):
         cmd.extend(["-p", full_prompt])
 
         return cmd
-
-    def _build_prompt_with_context(
-        self,
-        prompt: str,
-        context: dict[str, Any] | None = None,
-    ) -> str:
-        """Build prompt with context JSON block.
-
-        Args:
-            prompt: Base prompt.
-            context: Context dict to include.
-
-        Returns:
-            Prompt with context appended.
-        """
-        parts = [prompt]
-
-        if context:
-            parts.extend(
-                [
-                    "",
-                    "## Context",
-                    "",
-                    "```json",
-                    json.dumps(context, indent=2, default=str),
-                    "```",
-                ]
-            )
-
-        return "\n".join(parts)
-
-    def _extract_system_prompt(self, agent_spec_path: Path) -> str | None:
-        """Extract system prompt from agent spec markdown file.
-
-        The agent spec is expected to have YAML frontmatter followed by
-        markdown content that serves as the system prompt.
-
-        Args:
-            agent_spec_path: Path to agent spec file.
-
-        Returns:
-            System prompt text, or None if file doesn't exist.
-        """
-        if not agent_spec_path.exists():
-            return None
-
-        content = agent_spec_path.read_text()
-
-        # Skip YAML frontmatter if present
-        if content.startswith("---"):
-            parts = content.split("---", 2)
-            if len(parts) >= 3:
-                # Return the content after frontmatter
-                return parts[2].strip()
-
-        return content
-
-    def _try_parse_json(self, output: str) -> dict[str, Any] | None:
-        """Try to extract JSON from output.
-
-        Args:
-            output: Raw output from Gemini.
-
-        Returns:
-            Parsed JSON dict, or None if no valid JSON found.
-        """
-        # Look for JSON blocks in the output
-        lines = output.strip().split("\n")
-        json_lines: list[str] = []
-        in_json = False
-
-        for line in lines:
-            if line.strip().startswith("{") or line.strip() == "```json":
-                in_json = True
-                if line.strip() != "```json":
-                    json_lines.append(line)
-            elif in_json:
-                if line.strip() == "```":
-                    break
-                json_lines.append(line)
-
-        if json_lines:
-            try:
-                parsed: dict[str, Any] = json.loads("\n".join(json_lines))
-                return parsed
-            except json.JSONDecodeError:
-                pass
-
-        return None
