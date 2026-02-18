@@ -124,7 +124,9 @@ class CodexRunner(Runner):
                             self._display_json_event(line)
                             collected_stdout.append(line)
                     except KeyboardInterrupt:
-                        _console.print("\n[yellow]⚠ Interrupt received, terminating Codex...[/yellow]")
+                        _console.print(
+                            "\n[yellow]⚠ Interrupt received, terminating Codex...[/yellow]"
+                        )
                         interrupted = True
 
                     if not interrupted:
@@ -271,7 +273,9 @@ class CodexRunner(Runner):
                     exit_code = item.get("exit_code", 0)
                     status_symbol = "✓" if exit_code == 0 else "✗"
                     status_color = "green" if exit_code == 0 else "red"
-                    _console.print(f"[{status_color}]{status_symbol} Command completed (exit: {exit_code})[/{status_color}]")
+                    _console.print(
+                        f"[{status_color}]{status_symbol} Command completed (exit: {exit_code})[/{status_color}]"
+                    )
                 elif item_type == "reasoning":
                     text = item.get("text", "")
                     if text:

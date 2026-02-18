@@ -31,9 +31,9 @@ def simulate_long_running_task():
     with InterruptHandler() as handler:
         try:
             for iteration in range(1, 4):
-                print(f"\n{'='*60}")
+                print(f"\n{'=' * 60}")
                 print(f"Iteration {iteration}/3")
-                print(f"{'='*60}")
+                print(f"{'=' * 60}")
 
                 for phase in phases:
                     # Check for interrupt before starting phase
@@ -58,7 +58,7 @@ def simulate_long_running_task():
         except KeyboardInterrupt:
             print("\n\n{'='*60}")
             print("INTERRUPT HANDLING")
-            print(f"{'='*60}")
+            print(f"{'=' * 60}")
             print(f"Interrupt count: {handler.interrupt_count}")
             print("Running cleanup...")
             time.sleep(1)
@@ -67,7 +67,7 @@ def simulate_long_running_task():
 
     print("\n\n{'='*60}")
     print("COMPLETED")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print("All iterations finished successfully!")
 
 

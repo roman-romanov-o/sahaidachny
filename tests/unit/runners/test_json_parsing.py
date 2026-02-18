@@ -14,7 +14,7 @@ class TestTryParseJson:
 
     def test_extracts_json_from_markdown(self) -> None:
         """TC-UNIT-020: Extract JSON from markdown code block."""
-        output = '''
+        output = """
 Some text before
 
 ```json
@@ -22,7 +22,7 @@ Some text before
 ```
 
 Some text after
-'''
+"""
         parsed = try_parse_json(output)
         assert parsed is not None
         assert parsed["status"] == "success"
@@ -43,7 +43,7 @@ Some text after
 
     def test_handles_multiple_json_blocks(self) -> None:
         """TC-UNIT-023: Returns first valid JSON block from multiple."""
-        output = '''
+        output = """
 ```json
 {"first": "block"}
 ```
@@ -53,7 +53,7 @@ Some text
 ```json
 {"second": "block"}
 ```
-'''
+"""
         parsed = try_parse_json(output)
         assert parsed is not None
         assert parsed["first"] == "block"

@@ -89,12 +89,8 @@ class TestBuildSkillsPrompt:
         skills_dir = tmp_path / "claude_plugin" / "skills"
         (skills_dir / "ruff").mkdir(parents=True)
         (skills_dir / "ty").mkdir(parents=True)
-        (skills_dir / "ruff" / "SKILL.md").write_text(
-            "---\nname: ruff\n---\n\n# Ruff\nLinter"
-        )
-        (skills_dir / "ty" / "SKILL.md").write_text(
-            "---\nname: ty\n---\n\n# Ty\nType checker"
-        )
+        (skills_dir / "ruff" / "SKILL.md").write_text("---\nname: ruff\n---\n\n# Ruff\nLinter")
+        (skills_dir / "ty" / "SKILL.md").write_text("---\nname: ty\n---\n\n# Ty\nType checker")
 
         # Set up agent spec
         agents_dir = tmp_path / "claude_plugin" / "agents"
