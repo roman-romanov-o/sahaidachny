@@ -105,59 +105,82 @@ class CodexRunner(Runner):
                 bufsize=1,  # Line buffered
             )
 
-            # Send prompt and close stdin
-            if process.stdin:
-                process.stdin.write(prompt)
-                process.stdin.close()
+            stdin_pipe = getattr(process, "stdin", None)
+            stdout_pipe = getattr(process, "stdout", None)
+            stderr_pipe = getattr(process, "stderr", None)
+            can_stream = stdin_pipe is not None and stdout_pipe is not None
 
-            # Stream stdout in real-time
-            collected_stdout = []
-            interrupted = False
-            try:
-                if process.stdout:
+            if can_stream:
+                # Send prompt and close stdin before streaming output.
+                stdin_pipe.write(prompt)
+                stdin_pipe.close()
+
+                collected_stdout: list[str] = []
+                interrupted = False
+                try:
                     try:
-                        for line in process.stdout:
-                            # Print line immediately for real-time feedback
-                            sys.stdout.write(line)
-                            sys.stdout.flush()
+                        for line in stdout_pipe:
+                            # Display structured JSON events if available
+                            self._display_json_event(line)
                             collected_stdout.append(line)
                     except KeyboardInterrupt:
                         _console.print("\n[yellow]⚠ Interrupt received, terminating Codex...[/yellow]")
                         interrupted = True
 
-                if not interrupted:
-                    # Wait for process to complete
-                    process.wait(timeout=timeout)
-                else:
-                    # Terminate the process
+                    if not interrupted:
+                        # Wait for process to complete
+                        process.wait(timeout=timeout)
+                    else:
+                        # Terminate the process
+                        process.terminate()
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait()
+
+                    stdout = "".join(collected_stdout)
+                    stderr = stderr_pipe.read() if stderr_pipe else ""
+
+                    if interrupted:
+                        raise KeyboardInterrupt
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    stdout = "".join(collected_stdout)
+                    stderr = stderr_pipe.read() if stderr_pipe else ""
+                    return RunnerResult.failure(
+                        f"Command timed out after {timeout} seconds",
+                        exit_code=124,
+                    )
+                except KeyboardInterrupt:
+                    _console.print("\n[yellow]Codex interrupted by user[/yellow]")
                     process.terminate()
                     try:
                         process.wait(timeout=5)
                     except subprocess.TimeoutExpired:
                         process.kill()
-                        process.wait()
-
-                stdout = "".join(collected_stdout)
-                stderr = process.stderr.read() if process.stderr else ""
-
-                if interrupted:
-                    raise KeyboardInterrupt
-            except subprocess.TimeoutExpired:
-                process.kill()
-                stdout = "".join(collected_stdout)
-                stderr = process.stderr.read() if process.stderr else ""
-                return RunnerResult.failure(
-                    f"Command timed out after {timeout} seconds",
-                    exit_code=124,
-                )
-            except KeyboardInterrupt:
-                _console.print("\n[yellow]Codex interrupted by user[/yellow]")
-                process.terminate()
+                    raise
+            else:
+                # Compatibility path for tests and mocked Popen objects without pipe attrs.
                 try:
-                    process.wait(timeout=5)
+                    stdout, stderr = process.communicate(prompt, timeout=timeout)
+                    stdout = stdout or ""
+                    stderr = stderr or ""
                 except subprocess.TimeoutExpired:
                     process.kill()
-                raise
+                    stdout, stderr = process.communicate()
+                    return RunnerResult.failure(
+                        f"Command timed out after {timeout} seconds",
+                        exit_code=124,
+                    )
+                except KeyboardInterrupt:
+                    _console.print("\n[yellow]Codex interrupted by user[/yellow]")
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                    raise
 
             if process.returncode != 0:
                 return RunnerResult(
@@ -207,6 +230,66 @@ class CodexRunner(Runner):
                 except OSError:
                     logger.debug("Failed to remove Codex output file")
 
+    def _display_json_event(self, line: str) -> None:
+        """Parse and display JSON events from Codex CLI output."""
+        line = line.strip()
+        if not line:
+            return
+
+        try:
+            event = json.loads(line)
+            event_type = event.get("type")
+
+            if event_type == "thread.started":
+                _console.print(f"[dim]Thread started: {event.get('thread_id', 'unknown')}[/dim]")
+            elif event_type == "turn.started":
+                _console.print("[cyan]▶ Turn started[/cyan]")
+            elif event_type == "turn.completed":
+                usage = event.get("usage", {})
+                if usage:
+                    _console.print(
+                        f"[green]✓ Turn completed[/green] "
+                        f"[dim](input: {usage.get('input_tokens', 0)}, "
+                        f"output: {usage.get('output_tokens', 0)})[/dim]"
+                    )
+                else:
+                    _console.print("[green]✓ Turn completed[/green]")
+            elif event_type == "item.started":
+                item = event.get("item", {})
+                item_type = item.get("type")
+                if item_type == "command_execution":
+                    cmd = item.get("command", "")
+                    _console.print(f"[yellow]⚙[/yellow] Executing: [dim]{cmd[:80]}...[/dim]")
+                elif item_type == "reasoning":
+                    _console.print("[blue]💭 Reasoning...[/blue]")
+                elif item_type == "agent_message":
+                    _console.print("[cyan]💬 Agent message[/cyan]")
+            elif event_type == "item.completed":
+                item = event.get("item", {})
+                item_type = item.get("type")
+                if item_type == "command_execution":
+                    exit_code = item.get("exit_code", 0)
+                    status_symbol = "✓" if exit_code == 0 else "✗"
+                    status_color = "green" if exit_code == 0 else "red"
+                    _console.print(f"[{status_color}]{status_symbol} Command completed (exit: {exit_code})[/{status_color}]")
+                elif item_type == "reasoning":
+                    text = item.get("text", "")
+                    if text:
+                        _console.print(f"[blue]💭[/blue] {text[:100]}...")
+                elif item_type == "agent_message":
+                    text = item.get("text", "")
+                    if text and len(text) < 200:
+                        _console.print(f"[cyan]💬[/cyan] {text}")
+            else:
+                # For unknown events, just log them at debug level
+                logger.debug(f"Codex event: {event_type}")
+
+        except json.JSONDecodeError:
+            # Not JSON, might be raw output - display as-is
+            if line:
+                sys.stdout.write(line + "\n")
+                sys.stdout.flush()
+
     def _build_command(self, output_file: Path) -> list[str]:
         """Build the codex exec command."""
         cmd = [
@@ -215,6 +298,7 @@ class CodexRunner(Runner):
             "-",  # Read prompt from stdin
             "--output-last-message",
             str(output_file),
+            "--json",  # Enable JSON streaming output
             "--color",
             "never",
             "--cd",
@@ -235,6 +319,16 @@ class CodexRunner(Runner):
     def _extract_skills_prompt(self, agent_spec_path: Path) -> str | None:
         """Extract and render referenced skills for Codex prompts."""
         return build_skills_prompt(agent_spec_path, self._working_dir)
+
+    def _build_prompt_with_context(
+        self,
+        prompt: str,
+        context: dict[str, Any] | None = None,
+        system_prompt: str | None = None,
+        skills_prompt: str | None = None,
+    ) -> str:
+        """Backward-compatible wrapper for prompt building."""
+        return build_prompt_with_context(prompt, context, system_prompt, skills_prompt)
 
     def _extract_token_usage(
         self,
