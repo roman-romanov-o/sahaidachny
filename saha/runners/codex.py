@@ -111,6 +111,8 @@ class CodexRunner(Runner):
             can_stream = stdin_pipe is not None and stdout_pipe is not None
 
             if can_stream:
+                assert stdin_pipe is not None
+                assert stdout_pipe is not None
                 # Send prompt and close stdin before streaming output.
                 stdin_pipe.write(prompt)
                 stdin_pipe.close()
