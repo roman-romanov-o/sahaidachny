@@ -10,6 +10,7 @@ Usage:
 """
 
 import time
+
 from saha.orchestrator.loop import InterruptHandler
 
 
@@ -43,7 +44,7 @@ def simulate_long_running_task():
                     print(f"\n▶ Running {phase}...", end="", flush=True)
 
                     # Simulate phase work
-                    for i in range(5):
+                    for _i in range(5):
                         time.sleep(0.5)
                         print(".", end="", flush=True)
 
