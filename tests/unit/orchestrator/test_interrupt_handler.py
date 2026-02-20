@@ -1,7 +1,9 @@
 """Unit tests for InterruptHandler."""
 
 import signal
+
 import pytest
+
 from saha.orchestrator.loop import InterruptHandler
 
 

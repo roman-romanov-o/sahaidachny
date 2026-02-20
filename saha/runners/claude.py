@@ -364,7 +364,9 @@ class ClaudeRunner(Runner):
                                 # Non-JSON line, just print it
                                 print(line)
                     except KeyboardInterrupt:
-                        _stream_console.print("\n[yellow]⚠ Interrupt received, terminating Claude...[/yellow]")
+                        _stream_console.print(
+                            "\n[yellow]⚠ Interrupt received, terminating Claude...[/yellow]"
+                        )
                         interrupted = True
 
                 # Collect stderr

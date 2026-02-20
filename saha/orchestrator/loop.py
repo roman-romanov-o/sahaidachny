@@ -53,7 +53,9 @@ class InterruptHandler:
         self.original_handler = signal.signal(signal.SIGINT, self._signal_handler)
         return self
 
-    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object
+    ) -> None:
         """Restore original signal handler."""
         if self.original_handler is not None:
             signal.signal(signal.SIGINT, self.original_handler)
@@ -326,6 +328,15 @@ class AgenticLoop:
         # Phase 1: Implementation
         impl_result = self._run_implementation(state, config, plan_updater, plan_phase_path)
         if not impl_result.succeeded:
+            self._run_manager_on_iteration_stop(
+                state,
+                config,
+                plan_updater,
+                plan_phase_path,
+                stopped_at_phase=LoopPhase.IMPLEMENTATION,
+                stop_reason=impl_result.error or "Implementation failed",
+                impl_result=impl_result,
+            )
             self._state_manager.fail_phase(
                 state, LoopPhase.IMPLEMENTATION, impl_result.error or "Implementation failed"
             )
@@ -357,6 +368,16 @@ class AgenticLoop:
             self._hooks.trigger(
                 "test_critique_failed", state=state, critique_result=critique_result
             )
+            self._run_manager_on_iteration_stop(
+                state,
+                config,
+                plan_updater,
+                plan_phase_path,
+                stopped_at_phase=LoopPhase.TEST_CRITIQUE,
+                stop_reason=critique_result.fix_info or "Test critique failed",
+                impl_result=impl_result,
+                critique_result=critique_result,
+            )
             return state
 
         # Check for interrupt after test critique
@@ -373,6 +394,17 @@ class AgenticLoop:
             iteration.fix_info = qa_result.fix_info
             self._state_manager.save(state)
             self._hooks.trigger("qa_failed", state=state, qa_result=qa_result)
+            self._run_manager_on_iteration_stop(
+                state,
+                config,
+                plan_updater,
+                plan_phase_path,
+                stopped_at_phase=LoopPhase.QA,
+                stop_reason=qa_result.fix_info or "QA failed",
+                impl_result=impl_result,
+                critique_result=critique_result,
+                qa_result=qa_result,
+            )
             return state
 
         # Check for interrupt after QA
@@ -391,6 +423,18 @@ class AgenticLoop:
             iteration.fix_info = quality_result.fix_info
             self._state_manager.save(state)
             self._hooks.trigger("quality_failed", state=state, quality_result=quality_result)
+            self._run_manager_on_iteration_stop(
+                state,
+                config,
+                plan_updater,
+                plan_phase_path,
+                stopped_at_phase=LoopPhase.CODE_QUALITY,
+                stop_reason=quality_result.fix_info or "Code quality failed",
+                impl_result=impl_result,
+                critique_result=critique_result,
+                qa_result=qa_result,
+                quality_result=quality_result,
+            )
             return state
 
         # Check for interrupt after code quality
@@ -400,7 +444,16 @@ class AgenticLoop:
         iteration.quality_passed = True
 
         # Phase 5: Manager updates
-        self._run_manager(state, config, plan_updater, plan_phase_path)
+        self._run_manager(
+            state,
+            config,
+            plan_updater,
+            plan_phase_path,
+            impl_result=impl_result,
+            critique_result=critique_result,
+            qa_result=qa_result,
+            quality_result=quality_result,
+        )
 
         # Check for interrupt after manager
         if interrupt_handler.was_interrupted():
@@ -421,6 +474,47 @@ class AgenticLoop:
         self._hooks.trigger("iteration_complete", state=state, iteration=iteration)
 
         return state
+
+    def _run_manager_on_iteration_stop(
+        self,
+        state: ExecutionState,
+        config: LoopConfig,
+        plan_updater: PlanProgressUpdater | None,
+        plan_phase_path: Path | None,
+        stopped_at_phase: LoopPhase,
+        stop_reason: str | None = None,
+        impl_result: SubagentResult | None = None,
+        critique_result: TestCritiqueResult | None = None,
+        qa_result: QAResult | None = None,
+        quality_result: CodeQualityResult | None = None,
+    ) -> None:
+        """Best-effort manager update when iteration stops before DoD."""
+        try:
+            self._run_manager(
+                state,
+                config,
+                plan_updater,
+                plan_phase_path,
+                impl_result=impl_result,
+                critique_result=critique_result,
+                qa_result=qa_result,
+                quality_result=quality_result,
+                stopped_at_phase=stopped_at_phase,
+                stop_reason=stop_reason,
+            )
+        except KeyboardInterrupt:
+            raise
+        except Exception as exc:
+            logger.warning(f"Manager update after {stopped_at_phase.value} stop failed: {exc}")
+        finally:
+            # Keep loop semantics stable for retries by restoring the stopped phase.
+            if state.current_phase not in (
+                LoopPhase.FAILED,
+                LoopPhase.COMPLETED,
+                LoopPhase.STOPPED,
+            ):
+                state.current_phase = stopped_at_phase
+                self._state_manager.save(state)
 
     def _run_implementation(
         self,
@@ -939,6 +1033,12 @@ class AgenticLoop:
         config: LoopConfig,
         plan_updater: PlanProgressUpdater | None,
         plan_phase_path: Path | None,
+        impl_result: SubagentResult | None = None,
+        critique_result: TestCritiqueResult | None = None,
+        qa_result: QAResult | None = None,
+        quality_result: CodeQualityResult | None = None,
+        stopped_at_phase: LoopPhase | None = None,
+        stop_reason: str | None = None,
         timeout: int = 300,
     ) -> None:
         """Run the manager subagent to update task status."""
@@ -973,11 +1073,16 @@ class AgenticLoop:
             )
             return
 
-        context = {
-            "task_id": config.task_id,
-            "task_path": str(config.task_path),
-            "iteration": state.current_iteration,
-        }
+        context = self._build_manager_context(
+            state,
+            config,
+            impl_result=impl_result,
+            critique_result=critique_result,
+            qa_result=qa_result,
+            quality_result=quality_result,
+            stopped_at_phase=stopped_at_phase,
+            stop_reason=stop_reason,
+        )
 
         prompt = self._build_manager_prompt(state, config)
         log_agent_prompt("Manager", prompt)
@@ -1009,6 +1114,56 @@ class AgenticLoop:
             )
 
         self._state_manager.complete_phase(state, LoopPhase.MANAGER)
+
+    def _build_manager_context(
+        self,
+        state: ExecutionState,
+        config: LoopConfig,
+        impl_result: SubagentResult | None = None,
+        critique_result: TestCritiqueResult | None = None,
+        qa_result: QAResult | None = None,
+        quality_result: CodeQualityResult | None = None,
+        stopped_at_phase: LoopPhase | None = None,
+        stop_reason: str | None = None,
+    ) -> dict[str, Any]:
+        """Build manager context with concrete evidence from this iteration."""
+        iteration = state.current_iteration_record
+        files_changed = iteration.files_changed if iteration else []
+        files_added = iteration.files_added if iteration else []
+
+        implementation_summary: str | None = None
+        if impl_result is not None:
+            implementation_summary = impl_result.structured_output.get("summary")
+            if not implementation_summary and impl_result.output:
+                implementation_summary = impl_result.output[:1200]
+
+        artifacts: dict[str, Any] = {
+            "files_changed": files_changed,
+            "files_added": files_added,
+            "implementation_summary": implementation_summary,
+            "test_critique_passed": critique_result.passed if critique_result else None,
+            "test_critique_score": critique_result.test_quality_score if critique_result else None,
+            "qa_passed": qa_result.dod_achieved if qa_result else None,
+            "qa_fix_info": qa_result.fix_info if qa_result else None,
+            "quality_passed": quality_result.passed if quality_result else None,
+            "quality_blocking_issues": (
+                quality_result.blocking_issues_count if quality_result else None
+            ),
+        }
+        if impl_result and impl_result.structured_output:
+            artifacts["implementation_structured_output"] = impl_result.structured_output
+
+        return {
+            "task_id": config.task_id,
+            "task_path": str(config.task_path),
+            "iteration": state.current_iteration,
+            "current_plan_phase": state.context.get("current_plan_phase"),
+            "iteration_stop": {
+                "stopped_at_phase": stopped_at_phase.value if stopped_at_phase else None,
+                "reason": stop_reason,
+            },
+            "iteration_artifacts": artifacts,
+        }
 
     def _run_dod_check(
         self,
@@ -1248,20 +1403,40 @@ class AgenticLoop:
                 ]
             )
 
+        iteration = state.current_iteration_record
+        files_touched: list[str] = []
+        if iteration:
+            files_touched = sorted(set(iteration.files_changed + iteration.files_added))
+
+        if files_touched:
+            parts.append("Files changed this iteration (from runner metadata):")
+            for file_path in files_touched[:25]:
+                parts.append(f"  - {file_path}")
+            if len(files_touched) > 25:
+                parts.append(f"  - ... and {len(files_touched) - 25} more")
+            parts.append("")
+
         parts.extend(
             [
                 "Your job:",
-                "1. Read the user stories at {task_path}/user-stories/",
-                "2. Read the implementation plan at {task_path}/implementation-plan/",
+                f"1. Read the user stories at {config.task_path}/user-stories/",
+                f"2. Read the implementation plan at {config.task_path}/implementation-plan/",
                 "3. Based on what was implemented this iteration, update:",
                 "   - Mark completed acceptance criteria with [x]",
                 "   - Update user story status if all criteria are met",
                 "   - Mark completed phases in the implementation plan",
                 "",
+                "Use the Context JSON as primary evidence for this iteration.",
+                "If evidence is incomplete, inspect repository files/diff directly and stay conservative.",
+                "If Context.iteration_stop.stopped_at_phase is set, this iteration ended early.",
+                "For early-stop iterations, update progress notes conservatively and avoid over-marking completion.",
+                "Do not ask the user for additional context in your output.",
                 "Only mark items as done that are actually implemented.",
                 "Be conservative - if unsure, leave it as pending.",
+                "Use status='partial' only when a file update was attempted but failed.",
                 "",
-                'Return JSON: {"status": "success", "updates_made": [...], "items_completed": [...]}',
+                "Return JSON with this exact shape:",
+                '{"status":"success","updates_made":[{"file":"...","change":"...","verified":true}],"items_completed":["..."],"items_remaining":["..."],"failed_updates":[],"notes":"..."}',
             ]
         )
 

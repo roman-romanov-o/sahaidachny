@@ -253,6 +253,16 @@ class TestAgenticLoopLocal:
         qa_calls = sum(1 for call in runner.call_history if "qa" in call["agent_name"])
         assert qa_calls >= 3
 
+        # Manager should run for each iteration, including failed QA iterations
+        manager_calls = [c for c in runner.call_history if c["agent_name"] == "execution-manager"]
+        assert len(manager_calls) == state.current_iteration
+
+        # At least one manager invocation should indicate an early stop at QA
+        assert any(
+            (c.get("context", {}).get("iteration_stop", {}).get("stopped_at_phase") == "qa")
+            for c in manager_calls
+        )
+
     def test_loop_code_quality_failure_and_recovery(self, temp_project, state_manager):
         """Test that code quality failures trigger fix loops."""
         settings = Settings(runner="mock")
@@ -285,6 +295,10 @@ class TestAgenticLoopLocal:
 
         # Should have at least 2 iterations
         assert state.current_iteration >= 2
+
+        # Manager should run for each iteration, including failed quality iterations
+        manager_calls = [c for c in runner.call_history if c["agent_name"] == "execution-manager"]
+        assert len(manager_calls) == state.current_iteration
 
     def test_max_iterations_respected(self, temp_project, state_manager):
         """Test that the loop stops at max iterations."""
@@ -430,6 +444,56 @@ class TestAgenticLoopLocal:
             context = call.get("context", {})
             assert "task_id" in context, f"{call['agent_name']}: missing task_id"
             assert "task_path" in context, f"{call['agent_name']}: missing task_path"
+
+    def test_manager_receives_iteration_artifacts(self, temp_project, state_manager):
+        """Test that manager gets concrete iteration evidence in prompt + context."""
+        settings = Settings(runner="mock")
+        runner = IntelligentMockRunner(
+            working_dir=temp_project,
+            fail_qa_count=0,
+            fail_quality_count=0,
+            make_code_changes=True,
+        )
+
+        tools = create_default_registry()
+        hooks = HookRegistry()
+
+        orchestrator = AgenticLoop(
+            runner=runner,
+            tool_registry=tools,
+            hook_registry=hooks,
+            state_manager=state_manager,
+            settings=settings,
+        )
+
+        config = LoopConfig(
+            task_id="manager-context-test",
+            task_path=Path("docs/tasks/test-task"),
+            max_iterations=2,
+            enabled_tools=[],
+        )
+
+        orchestrator.run(config)
+
+        manager_calls = [c for c in runner.call_history if c["agent_name"] == "execution-manager"]
+        assert manager_calls, "manager agent was not called"
+
+        manager_call = manager_calls[0]
+        manager_context = manager_call.get("context", {})
+        artifacts = manager_context.get("iteration_artifacts", {})
+        stop_info = manager_context.get("iteration_stop", {})
+
+        assert "files_changed" in artifacts
+        assert "files_added" in artifacts
+        assert artifacts.get("qa_passed") is True
+        assert artifacts.get("quality_passed") is True
+        assert "test_critique_score" in artifacts
+        assert "stopped_at_phase" in stop_info
+
+        manager_prompt = manager_call.get("prompt", "")
+        assert "{task_path}" not in manager_prompt
+        assert "docs/tasks/test-task/user-stories/" in manager_prompt
+        assert "docs/tasks/test-task/implementation-plan/" in manager_prompt
 
     def test_fix_info_passed_on_failure(self, temp_project, state_manager):
         """Test that fix_info is passed to implementation agent on retry."""
