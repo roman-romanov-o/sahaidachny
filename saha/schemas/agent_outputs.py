@@ -242,22 +242,60 @@ class TestCritiqueIssue(BaseModel):
     file: str = Field(description="Path to the test file")
     line: int = Field(description="Line number")
     test_name: str = Field(description="Name of the problematic test")
-    pattern: str = Field(description="Pattern detected (over_mocking, mocking_sut, placeholder)")
+    pattern: str = Field(
+        description=(
+            "Pattern detected: over_mocking, mocking_sut, placeholder, vague_assertion, "
+            "incomplete_assertion, always_true, brittle_assertion, missing_negative, "
+            "unclear_name, no_aaa_structure, complex_test, magic_values, only_happy_path, "
+            "missing_edge_cases, no_exception_tests, flaky_timing, shared_state, "
+            "missing_cleanup, random_values"
+        )
+    )
     description: str = Field(description="Description of the issue")
+    dimension: str | None = Field(
+        default=None,
+        description=(
+            "Quality dimension: mocking, assertions, structure, coverage, independence"
+        ),
+    )
     mocks_count: int | None = Field(
         default=None, description="Number of mocks (for over_mocking pattern)"
     )
+    missing_tests: list[str] | None = Field(
+        default=None, description="List of untested functions/methods (for missing_tests pattern)"
+    )
+
+
+class DimensionScores(BaseModel):
+    """Quality scores for each test dimension."""
+
+    mocking: TestQualityScore = Field(description="Mocking & test doubles quality (A-F)")
+    assertions: TestQualityScore = Field(description="Assertion quality (A-F)")
+    structure: TestQualityScore = Field(description="Test structure & clarity (A-F)")
+    coverage: TestQualityScore = Field(description="Coverage quality (A-F)")
+    independence: TestQualityScore = Field(description="Test independence & stability (A-F)")
 
 
 class TestCritiqueOutput(BaseModel):
     """Output schema for execution-test-critique agent."""
 
-    critique_passed: bool = Field(description="True if score A/B/C, False if D/F")
-    test_quality_score: TestQualityScore = Field(description="Grade A through F")
+    critique_passed: bool = Field(
+        description="True only if score A or B. False if C/D/F (high bar)"
+    )
+    test_quality_score: TestQualityScore = Field(description="Overall grade A through F")
     tests_analyzed: int = Field(description="How many test functions analyzed")
     summary: str = Field(description="Brief assessment")
     confidence: str | None = Field(default=None, description="How certain of the analysis")
     hollow_tests: int | None = Field(default=None, description="Count of problematic tests")
+    dimension_scores: DimensionScores | None = Field(
+        default=None, description="Scores for each quality dimension"
+    )
+    files_with_coverage: list[str] | None = Field(
+        default=None, description="Changed files that have test coverage"
+    )
+    files_missing_coverage: list[str] | None = Field(
+        default=None, description="Changed files with NO test coverage (critical)"
+    )
     issues: list[TestCritiqueIssue] | None = Field(
         default=None, description="Specific problems found"
     )

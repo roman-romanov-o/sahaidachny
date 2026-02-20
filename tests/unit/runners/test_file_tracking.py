@@ -73,7 +73,7 @@ class TestFileChangeTracker:
         assert "file.txt" in changed
 
     def test_skips_hidden_directories(self, project_dir: Path) -> None:
-        """FileChangeTracker should skip .git, __pycache__, etc."""
+        """FileChangeTracker should skip .git, .gemini, __pycache__, etc."""
         (project_dir / "src").mkdir()
         (project_dir / "src" / "main.py").write_text("code")
         tracker = FileChangeTracker(project_dir)
@@ -83,9 +83,12 @@ class TestFileChangeTracker:
         (project_dir / ".git" / "index").write_text("git stuff")
         (project_dir / "__pycache__").mkdir()
         (project_dir / "__pycache__" / "mod.pyc").write_bytes(b"\x00")
+        (project_dir / ".gemini").mkdir()
+        (project_dir / ".gemini" / "session.json").write_text("{}")
 
         changed, added = tracker.diff()
         assert not any(".git" in f for f in added)
+        assert not any(".gemini" in f for f in added)
         assert not any("__pycache__" in f for f in added)
 
     def test_handles_nonexistent_root(self, tmp_path: Path) -> None:

@@ -30,7 +30,7 @@ ENV/
 .vscode/
 *.swp
 *.swo
-
+.env
 # Testing/Linting caches
 .pytest_cache/
 .mypy_cache/

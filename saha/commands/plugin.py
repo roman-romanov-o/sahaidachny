@@ -1,16 +1,18 @@
-"""Plugin management CLI commands.
+"""Plugin and artifact management CLI commands.
 
-This module contains commands for managing the Claude Code plugin:
+This module contains commands for:
 - plugin: Show plugin location or copy plugin files
-- claude: Launch Claude Code with Sahaidachny plugin configured
+- sync: Sync artifacts into local CLI directories (.claude/.codex/.gemini)
+- claude/codex/gemini: Launch CLI with Sahaidachny artifacts configured
 """
 
+import filecmp
 import logging
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 from pydantic import BaseModel
@@ -55,6 +57,37 @@ class SyncResult(BaseModel):
     plugin_path: str | None
 
 
+class TargetSyncResult(BaseModel):
+    """Result of syncing artifacts for one CLI target."""
+
+    target: Literal["claude", "codex", "gemini"]
+    destination: str
+    files_synced: list[str]
+    total_synced: int
+
+
+class MultiSyncResult(BaseModel):
+    """Result of syncing artifacts across one or more CLI targets."""
+
+    plugin_path: str | None
+    results: list[TargetSyncResult]
+    total_synced: int
+
+
+# Supported CLI targets and their local artifact directories
+CLI_TARGET_DIRS: dict[str, str] = {
+    "claude": ".claude",
+    "codex": ".codex",
+    "gemini": ".gemini",
+}
+
+CLI_INSTALL_HINTS: dict[str, str] = {
+    "claude": "Install it from: https://claude.ai/code",
+    "codex": "Install Codex CLI and ensure `codex` is available in PATH.",
+    "gemini": "Install Gemini CLI (https://github.com/google-gemini/gemini-cli).",
+}
+
+
 # Required execution agents that must exist for the loop to run
 REQUIRED_EXECUTION_AGENTS = [
     "execution-implementer.md",
@@ -69,6 +102,177 @@ REQUIRED_EXECUTION_AGENTS = [
 OPTIONAL_EXECUTION_AGENTS = [
     "execution-qa-playwright.md",
 ]
+
+
+def _should_copy_file(source: Path, target: Path, force: bool) -> bool:
+    """Return True when a file should be copied from source to target."""
+    if not target.exists():
+        return True
+
+    if target.is_symlink():
+        return True
+
+    if not force:
+        return False
+
+    try:
+        return not filecmp.cmp(source, target, shallow=False)
+    except OSError:
+        return True
+
+
+def _sync_file(source: Path, target: Path, force: bool) -> bool:
+    """Sync one file, optionally overwriting changed destinations."""
+    if not source.exists() or not source.is_file():
+        return False
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not _should_copy_file(source, target, force):
+        return False
+
+    if target.is_symlink():
+        target.unlink()
+
+    shutil.copy2(source, target)
+    return True
+
+
+def _sync_directory_tree(source_dir: Path, target_dir: Path, force: bool, prefix: str) -> list[str]:
+    """Sync all files from source_dir into target_dir and return synced relative paths."""
+    if not source_dir.exists() or not source_dir.is_dir():
+        return []
+
+    synced: list[str] = []
+    for source in source_dir.rglob("*"):
+        if not source.is_file():
+            continue
+
+        rel_path = source.relative_to(source_dir)
+        target = target_dir / rel_path
+        if _sync_file(source, target, force):
+            synced.append(f"{prefix}/{rel_path.as_posix()}")
+
+    return synced
+
+
+def _sync_commands_directory(
+    source_dir: Path,
+    target_dir: Path,
+    target_cli: Literal["claude", "codex", "gemini"],
+    force: bool,
+) -> list[str]:
+    """Sync command markdown files for a specific CLI target."""
+    if not source_dir.exists() or not source_dir.is_dir():
+        return []
+
+    synced: list[str] = []
+    for source in source_dir.iterdir():
+        if source.suffix != ".md":
+            continue
+
+        target_name = (
+            _get_command_target_name(source.name) if target_cli == "claude" else source.name
+        )
+        destination = target_dir / target_name
+        if _sync_file(source, destination, force):
+            synced.append(f"commands/{target_name}")
+
+        if target_cli == "claude":
+            _cleanup_legacy_claude_command_links(target_dir, source.name, destination)
+
+    return sorted(synced)
+
+
+def _cleanup_legacy_claude_command_links(
+    commands_dir: Path, source_name: str, namespaced_target: Path
+) -> None:
+    """Clean up stale legacy command links/files for Claude command namespace migration."""
+    unprefixed_path = commands_dir / source_name
+    if unprefixed_path.is_symlink():
+        unprefixed_path.unlink()
+
+    if source_name == "saha.md":
+        old_prefixed = commands_dir / "sahaidachny.md"
+    else:
+        old_prefixed = commands_dir / f"sahaidachny:{source_name}"
+
+    if old_prefixed.exists() and old_prefixed != namespaced_target:
+        old_prefixed.unlink()
+
+
+def _sync_target_artifacts(
+    plugin_path: Path,
+    base_dir: Path,
+    target: Literal["claude", "codex", "gemini"],
+    force: bool,
+) -> TargetSyncResult:
+    """Sync all plugin artifacts for one target CLI directory."""
+    destination = base_dir / CLI_TARGET_DIRS[target]
+    destination.mkdir(parents=True, exist_ok=True)
+
+    synced: list[str] = []
+    synced.extend(
+        _sync_commands_directory(plugin_path / "commands", destination / "commands", target, force)
+    )
+
+    for directory in ("agents", "skills", "templates", "scripts"):
+        synced.extend(
+            _sync_directory_tree(
+                plugin_path / directory, destination / directory, force=force, prefix=directory
+            )
+        )
+
+    if _sync_file(plugin_path / "settings.json", destination / "settings.json", force):
+        synced.append("settings.json")
+
+    return TargetSyncResult(
+        target=target,
+        destination=str(destination),
+        files_synced=sorted(synced),
+        total_synced=len(synced),
+    )
+
+
+def sync_artifacts(
+    target: Literal["claude", "codex", "gemini", "all"] = "all",
+    force: bool = False,
+    base_dir: Path | None = None,
+    plugin_path: Path | None = None,
+) -> MultiSyncResult:
+    """Sync plugin artifacts into local CLI directories.
+
+    Args:
+        target: Which CLI directory to sync (claude, codex, gemini, or all).
+        force: Overwrite changed files when True.
+        base_dir: Project root (defaults to cwd).
+        plugin_path: Optional explicit plugin source path.
+
+    Returns:
+        MultiSyncResult summarizing sync operations.
+    """
+    resolved_plugin = plugin_path or _find_plugin_path()
+    if resolved_plugin is None:
+        logger.warning("Plugin directory not found, cannot sync artifacts")
+        return MultiSyncResult(plugin_path=None, results=[], total_synced=0)
+
+    resolved_base = base_dir or Path.cwd()
+    targets: list[Literal["claude", "codex", "gemini"]]
+    if target == "all":
+        targets = ["claude", "codex", "gemini"]
+    else:
+        targets = [target]
+
+    results = [
+        _sync_target_artifacts(resolved_plugin, resolved_base, cli_target, force)
+        for cli_target in targets
+    ]
+    total_synced = sum(result.total_synced for result in results)
+
+    return MultiSyncResult(
+        plugin_path=str(resolved_plugin),
+        results=results,
+        total_synced=total_synced,
+    )
 
 
 def sync_claude_artifacts(claude_dir: Path | None = None) -> SyncResult:
@@ -106,8 +310,7 @@ def sync_claude_artifacts(claude_dir: Path | None = None) -> SyncResult:
         target = agents_dir / agent_name
         source = plugin_agents / agent_name
 
-        if not target.exists() and source.exists():
-            shutil.copy2(source, target)
+        if source.exists() and _sync_file(source, target, force=True):
             synced.append(agent_name)
             logger.info(f"Synced agent: {agent_name}")
 
@@ -225,8 +428,7 @@ def _setup_commands_for_claude(commands_src: Path, commands_dst: Path) -> None:
             item_dst = commands_dst / target_name
             if item_dst.is_symlink():
                 item_dst.unlink()
-            if not item_dst.exists():
-                shutil.copy2(item, item_dst)
+            shutil.copy2(item, item_dst)
 
             # Clean up legacy files that cause duplicate commands
             # 1. Unprefixed symlinks
@@ -272,16 +474,14 @@ def _copy_plugin_directory(src: Path, dst: Path) -> None:
 
     dst.mkdir(exist_ok=True)
 
-    for item in src.iterdir():
-        item_dst = dst / item.name
-        # Remove existing symlink if present
+    for item in src.rglob("*"):
+        if not item.is_file():
+            continue
+        rel = item.relative_to(src)
+        item_dst = dst / rel
         if item_dst.is_symlink():
             item_dst.unlink()
-        if not item_dst.exists():
-            if item.is_dir():
-                shutil.copytree(item, item_dst)
-            else:
-                shutil.copy2(item, item_dst)
+        _sync_file(item, item_dst, force=True)
 
 
 def _setup_plugin_directories_for_claude(plugin_path: Path, claude_dir: Path) -> None:
@@ -317,24 +517,52 @@ def _setup_settings_for_claude(plugin_path: Path, claude_dir: Path) -> None:
         old_hooks.unlink()
 
 
-def _validate_claude_prerequisites(plugin_path: Path | None) -> tuple[str, Path]:
-    """Validate Claude CLI and plugin path exist. Returns (claude_path, plugin_path)."""
-    claude_path = shutil.which("claude")
-    if claude_path is None:
-        typer.echo("Error: Claude Code CLI not found in PATH.", err=True)
-        typer.echo("Install it from: https://claude.ai/code", err=True)
+def _echo_missing_plugin_locations() -> None:
+    """Print standard plugin search locations."""
+    typer.echo("Searched locations:", err=True)
+    typer.echo("  - ./claude_plugin", err=True)
+    typer.echo("  - <package>/claude_plugin", err=True)
+    typer.echo(f"  - {sys.prefix}/share/sahaidachny/claude_plugin", err=True)
+
+
+def _validate_cli_prerequisites(
+    cli_name: Literal["claude", "codex", "gemini"],
+    plugin_path: Path | None,
+) -> tuple[str, Path]:
+    """Validate selected CLI and plugin path exist.
+
+    Returns:
+        Tuple of (cli_executable_path, resolved_plugin_path).
+    """
+    cli_path = shutil.which(cli_name)
+    if cli_path is None:
+        pretty_name = {
+            "claude": "Claude Code CLI",
+            "codex": "Codex CLI",
+            "gemini": "Gemini CLI",
+        }[cli_name]
+        typer.echo(f"Error: {pretty_name} not found in PATH.", err=True)
+        typer.echo(CLI_INSTALL_HINTS[cli_name], err=True)
         raise typer.Exit(1)
 
     resolved_plugin = plugin_path or _find_plugin_path()
     if resolved_plugin is None or not resolved_plugin.exists():
         typer.echo("Error: Plugin directory not found.", err=True)
-        typer.echo("Searched locations:", err=True)
-        typer.echo("  - ./claude_plugin", err=True)
-        typer.echo("  - <package>/claude_plugin", err=True)
-        typer.echo(f"  - {sys.prefix}/share/sahaidachny/claude_plugin", err=True)
+        _echo_missing_plugin_locations()
         raise typer.Exit(1)
 
-    return claude_path, resolved_plugin
+    return cli_path, resolved_plugin
+
+
+def _run_cli(cli_path: str, args: list[str] | None = None) -> None:
+    """Run a CLI executable, forwarding optional arguments."""
+    cmd = [cli_path]
+    if args:
+        cmd.extend(args)
+    try:
+        subprocess.run(cmd, check=False)
+    except KeyboardInterrupt:
+        pass
 
 
 def register_plugin_commands(app: typer.Typer) -> None:
@@ -357,10 +585,8 @@ def register_plugin_commands(app: typer.Typer) -> None:
 
         if plugin_path is None:
             typer.echo("Plugin not found!", err=True)
-            typer.echo("\nSearched locations:", err=True)
-            typer.echo("  - ./claude_plugin", err=True)
-            typer.echo("  - <package>/claude_plugin", err=True)
-            typer.echo(f"  - {sys.prefix}/share/sahaidachny/claude_plugin", err=True)
+            typer.echo("", err=True)
+            _echo_missing_plugin_locations()
             raise typer.Exit(1)
 
         if copy_to is None:
@@ -369,6 +595,51 @@ def register_plugin_commands(app: typer.Typer) -> None:
             copied = _copy_plugin_to_target(plugin_path, copy_to)
             typer.echo(f"Copied plugin files to: {copy_to}")
             typer.echo(f"Files copied: {copied}")
+
+    @app.command(name="sync")
+    def sync_workspace_artifacts(
+        target: Annotated[
+            Literal["claude", "codex", "gemini", "all"],
+            typer.Option(
+                "--target",
+                "-t",
+                help="Sync target directory (claude, codex, gemini, or all)",
+            ),
+        ] = "all",
+        force: Annotated[
+            bool,
+            typer.Option(
+                "--force",
+                "-f",
+                help="Overwrite changed local artifact files with plugin versions",
+            ),
+        ] = False,
+        plugin_path: Annotated[
+            Path | None,
+            typer.Option("--plugin-path", "-p", help="Path to plugin directory"),
+        ] = None,
+    ) -> None:
+        """Sync Sahaidachny artifacts into local CLI directories.
+
+        Examples:
+            saha sync
+            saha sync --target codex
+            saha sync --target all --force
+        """
+        result = sync_artifacts(target=target, force=force, plugin_path=plugin_path)
+        if result.plugin_path is None:
+            typer.echo("Plugin not found!", err=True)
+            _echo_missing_plugin_locations()
+            raise typer.Exit(1)
+
+        typer.echo(f"Plugin source: {result.plugin_path}")
+        for target_result in result.results:
+            typer.echo(
+                f"[{target_result.target}] {target_result.total_synced} file(s) synced -> "
+                f"{target_result.destination}"
+            )
+
+        typer.echo(f"Total synced: {result.total_synced} file(s)")
 
     @app.command(name="claude")
     def launch_claude(
@@ -391,7 +662,7 @@ def register_plugin_commands(app: typer.Typer) -> None:
             saha claude --resume
             saha claude --dangerously-skip-permissions
         """
-        claude_path, resolved_plugin = _validate_claude_prerequisites(plugin_path)
+        claude_path, resolved_plugin = _validate_cli_prerequisites("claude", plugin_path)
 
         # Ensure .claude directories exist
         claude_dir = Path.cwd() / ".claude"
@@ -406,12 +677,72 @@ def register_plugin_commands(app: typer.Typer) -> None:
         typer.echo("Starting Claude Code...")
         typer.echo()
 
-        # Build and execute command
-        cmd = [claude_path]
-        if args:
-            cmd.extend(args)
+        _run_cli(claude_path, args)
 
-        try:
-            subprocess.run(cmd, check=False)
-        except KeyboardInterrupt:
-            pass
+    @app.command(name="codex")
+    def launch_codex(
+        args: Annotated[
+            list[str] | None,
+            typer.Argument(help="Additional arguments to pass to Codex CLI"),
+        ] = None,
+        plugin_path: Annotated[
+            Path | None,
+            typer.Option("--plugin-path", "-p", help="Path to plugin directory"),
+        ] = None,
+        force_sync: Annotated[
+            bool,
+            typer.Option(
+                "--force-sync/--no-force-sync",
+                help="Refresh changed files in .codex from plugin (default: enabled)",
+            ),
+        ] = True,
+    ) -> None:
+        """Launch Codex CLI with local Sahaidachny artifacts synced in `.codex/`."""
+        codex_path, resolved_plugin = _validate_cli_prerequisites("codex", plugin_path)
+        sync_result = sync_artifacts(
+            target="codex",
+            force=force_sync,
+            plugin_path=resolved_plugin,
+        )
+        synced_count = sync_result.results[0].total_synced if sync_result.results else 0
+
+        typer.echo(f"Artifacts synced from: {resolved_plugin}")
+        typer.echo(f".codex updated ({synced_count} file(s) synced)")
+        typer.echo("Starting Codex CLI...")
+        typer.echo()
+
+        _run_cli(codex_path, args)
+
+    @app.command(name="gemini")
+    def launch_gemini(
+        args: Annotated[
+            list[str] | None,
+            typer.Argument(help="Additional arguments to pass to Gemini CLI"),
+        ] = None,
+        plugin_path: Annotated[
+            Path | None,
+            typer.Option("--plugin-path", "-p", help="Path to plugin directory"),
+        ] = None,
+        force_sync: Annotated[
+            bool,
+            typer.Option(
+                "--force-sync/--no-force-sync",
+                help="Refresh changed files in .gemini from plugin (default: enabled)",
+            ),
+        ] = True,
+    ) -> None:
+        """Launch Gemini CLI with local Sahaidachny artifacts synced in `.gemini/`."""
+        gemini_path, resolved_plugin = _validate_cli_prerequisites("gemini", plugin_path)
+        sync_result = sync_artifacts(
+            target="gemini",
+            force=force_sync,
+            plugin_path=resolved_plugin,
+        )
+        synced_count = sync_result.results[0].total_synced if sync_result.results else 0
+
+        typer.echo(f"Artifacts synced from: {resolved_plugin}")
+        typer.echo(f".gemini updated ({synced_count} file(s) synced)")
+        typer.echo("Starting Gemini CLI...")
+        typer.echo()
+
+        _run_cli(gemini_path, args)

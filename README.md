@@ -99,9 +99,9 @@ Using pip:
 pip install sahaidachny
 ```
 
-#### Step 4: Install Claude Code CLI
+#### Step 4: Install a CLI for Planning
 
-Sahaidachny requires Claude Code for the planning phase:
+Claude Code is recommended for `/saha:*` slash-command planning:
 
 ```bash
 # macOS/Linux
@@ -112,6 +112,16 @@ claude --version
 ```
 
 For Windows or detailed instructions, see: https://docs.anthropic.com/en/docs/claude-code
+
+Optional CLIs:
+
+```bash
+# Codex CLI
+codex --version
+
+# Gemini CLI
+gemini --version
+```
 
 #### Step 5: Verify Everything Works
 
@@ -147,20 +157,33 @@ uv tool install .
 
 ## Quick Start
 
-### 1. Launch Claude Code with Sahaidachny
+### 1. Sync Artifacts to Local CLI Directories
+
+```bash
+# Sync .claude, .codex, and .gemini in current project
+saha sync --target all
+```
+
+### 2. Launch Your Preferred Planning CLI
 
 ```bash
 saha claude
+# or
+saha codex
+# or
+saha gemini
 ```
 
-### 2. Initialize a Task
+`/saha:*` slash commands are Claude Code features. For Codex/Gemini, use synced artifacts in `.codex/` or `.gemini/` as local planning resources.
+
+### 3. Initialize a Task
 
 ```bash
 # In Claude Code:
 /saha:init user-authentication --mode=full
 ```
 
-### 3. Plan the Task
+### 4. Plan the Task
 
 ```bash
 /saha:research      # Explore codebase (for existing projects)
@@ -170,7 +193,7 @@ saha claude
 /saha:plan          # Create implementation phases
 ```
 
-### 4. Execute Autonomously
+### 5. Execute Autonomously
 
 ```bash
 # Back in terminal:
@@ -189,7 +212,7 @@ Or run a single task with Codex:
 saha run task-01 --runner codex
 ```
 
-### 5. Monitor Progress
+### 6. Monitor Progress
 
 ```bash
 saha status task-01 --verbose
@@ -283,7 +306,10 @@ Each iteration learns from previous failures via `fix_info`, enabling targeted f
 | `saha status [task-id]` | Check execution status |
 | `saha tools` | List available quality tools |
 | `saha clean [task-id]` | Remove execution state |
+| `saha sync [--target ...]` | Sync local CLI artifacts |
 | `saha claude` | Launch Claude Code with plugin |
+| `saha codex` | Launch Codex CLI with synced artifacts |
+| `saha gemini` | Launch Gemini CLI with synced artifacts |
 
 To stop a running loop, press `Ctrl+C`. Sahaidachny will stop the current agent, run the Manager to update task artifacts, and mark the task as stopped so you can resume later.
 
