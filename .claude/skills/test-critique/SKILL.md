@@ -1,11 +1,12 @@
 ---
 name: test-critique
 description: |
-  Analyze test quality to detect false confidence patterns. Use when:
-  - Reviewing test implementations
+  Comprehensive test quality analysis across 5 dimensions. Use when:
+  - Reviewing test implementations before QA
   - Verifying tests actually test real behavior
-  - Detecting over-mocking and hollow tests
-version: 0.1.0
+  - Detecting over-mocking, poor assertions, missing edge cases
+  - Identifying flaky patterns and test smells
+version: 0.2.0
 globs:
   - "**/test_*.py"
   - "**/*_test.py"
@@ -15,17 +16,35 @@ globs:
   - "**/*.spec.{ts,tsx,js,jsx}"
 ---
 
-# Test Quality Critique
+# Test Quality Critique (Enhanced)
 
-This skill helps identify tests that give **false confidence** - tests that pass but don't actually verify real behavior.
+This skill provides **comprehensive test quality analysis** across five dimensions to identify tests that give **false confidence** or have other quality issues.
 
 ## The Problem
 
-Tests that mock everything are worse than no tests:
-- They pass when the real code is broken
-- They create false confidence in the codebase
-- They make refactoring dangerous (tests pass, production fails)
-- They waste CI time without providing value
+Bad tests are worse than no tests:
+- **Hollow tests** pass when the real code is broken (false confidence)
+- **Poor assertions** don't catch bugs even when they run
+- **Flaky tests** waste CI time and developer trust
+- **Brittle tests** break on refactoring even when behavior is correct
+- **Incomplete tests** miss edge cases that cause production bugs
+
+## Five Quality Dimensions
+
+### 1. Mocking & Test Doubles (Weight: 30%)
+Focus: Are we testing real code or just mocks?
+
+### 2. Assertion Quality (Weight: 25%)
+Focus: Do assertions actually catch bugs?
+
+### 3. Test Structure & Clarity (Weight: 20%)
+Focus: Are tests maintainable and understandable?
+
+### 4. Coverage Quality (Weight: 15%)
+Focus: Do we test edge cases and error paths?
+
+### 5. Test Independence & Stability (Weight: 10%)
+Focus: Are tests reliable and isolated?
 
 ## Red Flags to Detect
 

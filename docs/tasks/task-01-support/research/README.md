@@ -229,6 +229,61 @@ Target: sample_project/utils.py
 
 ---
 
+### 07. Docker Container Authentication for Real Runners
+**File:** `07-docker-auth-real-runners.md`
+
+**Key Findings:**
+- All three CLIs support environment variable authentication (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY)
+- Environment variables are the simplest, most portable authentication method for Docker containers
+- Testcontainers has native support for passing environment variables (`.with_env()`)
+- Volume mounting credential files is more complex and less secure
+- Docker secrets are overkill for local testing
+
+**Authentication Methods Analyzed:**
+1. **Environment Variables (Recommended)**: Simple, portable, CI-friendly, all CLIs support it
+2. **Volume Mounts (Not Recommended)**: Host-dependent, permission issues, breaks container isolation
+3. **Docker Secrets (Overkill)**: Requires Docker Swarm, not supported by testcontainers
+4. **Runtime Injection (Advanced)**: More secure but more complex, CLI-specific logic required
+
+**Implementation Pattern:**
+```python
+container = DockerContainer("debian:bookworm-slim")
+    .with_env("ANTHROPIC_API_KEY", os.environ.get("ANTHROPIC_API_KEY"))
+    .with_env("OPENAI_API_KEY", os.environ.get("OPENAI_API_KEY"))
+    .with_env("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY"))
+    .with_command("sleep infinity")
+```
+
+**Security Considerations:**
+- Never log API keys (use redaction filters)
+- Use GitHub secrets for CI
+- Skip tests when credentials unavailable
+- Clean up containers after tests (automatic with testcontainers)
+- Use separate test API keys (not production keys)
+
+**CI Strategy:**
+- Store API keys in GitHub repository secrets
+- Nightly or weekly runs (cost control)
+- Conditional execution (skip if secrets not set)
+- Timeout protection (20-minute limit per job)
+- Rate limiting and token usage tracking
+
+**Cost Management:**
+- Weekly runs: ~$52-260/year
+- Nightly runs: ~$365-1,825/year
+- Use smaller/cheaper models for testing (haiku, mini, flash)
+- Rate limit tests (minimum 5 seconds between API calls)
+- Track token usage and set budget alerts
+
+**Sample Implementation:**
+Complete working example showing authenticated container fixture with CLI installation, credential injection, and test execution with proper error handling and skip logic.
+
+**Recommendation:** Use environment variables for authentication - simplest pattern with best CI integration and security trade-offs for testing use case.
+
+**Confidence Level:** Very High (95%) that environment variable approach will work reliably
+
+---
+
 ## Critical Assessments
 
 ### Is Codex Runner Broken?

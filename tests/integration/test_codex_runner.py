@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from saha.runners._utils import build_prompt_with_context
 from saha.runners.claude import ClaudeRunner
 from saha.runners.codex import CodexRunner, _FileChangeTracker
 
@@ -68,8 +69,7 @@ def test_codex_skills_prompt_includes_skill_bodies(tmp_path: Path) -> None:
 
 def test_codex_prompt_builds_with_system_and_context(tmp_path: Path) -> None:
     """CodexRunner should include system, skills, prompt, and context."""
-    runner = CodexRunner(working_dir=tmp_path)
-    prompt = runner._build_prompt_with_context(
+    prompt = build_prompt_with_context(
         "Do the thing",
         {"task_id": "task-01"},
         "System prompt",

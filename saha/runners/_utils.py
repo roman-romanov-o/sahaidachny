@@ -35,6 +35,7 @@ class FileChangeTracker:
         "node_modules",
         ".codex",
         ".claude",
+        ".gemini",
     }
 
     _SKIP_FILES: set[str] = {".DS_Store"}

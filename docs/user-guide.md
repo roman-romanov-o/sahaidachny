@@ -152,7 +152,20 @@ cd sahaidachny
 ./saha.sh claude
 ```
 
-### Installing the Claude Code Plugin
+### Installing Planning Artifacts for Local CLIs
+
+Sync artifacts into the current project so they are available for Claude Code, Codex, and Gemini:
+
+```bash
+saha sync --target all
+```
+
+This creates/updates:
+- `.claude/` (slash commands, agents, skills, templates)
+- `.codex/` (agents, commands, skills, templates)
+- `.gemini/` (agents, commands, skills, templates)
+
+Note: `/saha:*` slash commands are Claude Code-native. Codex/Gemini consume the synced artifacts as local prompt/agent resources.
 
 There are two ways to use the Sahaidachny plugin with Claude Code:
 
@@ -1382,7 +1395,10 @@ saha clean --all
 ### Execution Commands (saha CLI)
 
 ```
+saha sync [--target claude|codex|gemini|all] [--force] [-p plugin-path]
 saha claude [args...] [-p plugin-path]    # Launch Claude Code with plugin
+saha codex [args...] [-p plugin-path] [--force-sync]
+saha gemini [args...] [-p plugin-path] [--force-sync]
 saha plugin [--copy-to <dir>]             # Show plugin location or copy files
 saha run <task-id> [-p path] [-m max-iter] [-t tools] [--runner <name>] [--qa-runner <name>] [--playwright] [--skip-verify] [--dangerously-skip-permissions] [--dry-run] [-v]
 saha resume <task-id> [-v]

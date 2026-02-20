@@ -85,7 +85,8 @@ def _run_command(
     sync_result = sync_claude_artifacts()
     if sync_result.total_synced > 0:
         typer.echo(
-            f"Synced {sync_result.total_synced} missing agent(s): {', '.join(sync_result.agents_synced)}"
+            f"Synced {sync_result.total_synced} agent artifact(s): "
+            f"{', '.join(sync_result.agents_synced)}"
         )
 
     settings = _build_run_settings(

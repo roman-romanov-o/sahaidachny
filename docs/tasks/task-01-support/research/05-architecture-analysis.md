@@ -149,7 +149,7 @@ result = runner.run_agent(agent_path, prompt, context)
 ```python
 class Settings(BaseSettings):
     runner: Literal["claude", "codex", "gemini", "mock"] = "claude"
-    claude_model: str = "claude-sonnet-4-5-20250929"
+    claude_model: str = "sonnet"  # Alias: sonnet, opus, haiku
     codex_model: str | None = None
     gemini_model: str = "gemini-2.5-pro"
 ```
