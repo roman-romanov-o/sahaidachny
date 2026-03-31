@@ -254,9 +254,7 @@ class TestCritiqueIssue(BaseModel):
     description: str = Field(description="Description of the issue")
     dimension: str | None = Field(
         default=None,
-        description=(
-            "Quality dimension: mocking, assertions, structure, coverage, independence"
-        ),
+        description=("Quality dimension: mocking, assertions, structure, coverage, independence"),
     )
     mocks_count: int | None = Field(
         default=None, description="Number of mocks (for over_mocking pattern)"
