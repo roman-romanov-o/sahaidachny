@@ -1,6 +1,6 @@
 # Integration Test Spec: {{component_name}}
 
-**Related:** {{story_ids}}, {{api_contract}}
+**Related:** {{story_ids}}, {{code_change}}
 **Priority:** Critical | High | Medium | Low
 **Status:** Draft | Ready | Implemented
 
@@ -128,5 +128,5 @@ def assert_{{entity}}_created(db_session, expected):
 ## Related
 
 - **Stories:** {{story_ids}}
-- **API Contract:** {{api_contract}}
+- **Code Change:** {{code_change}}
 - **Unit Tests:** {{unit_test_specs}}

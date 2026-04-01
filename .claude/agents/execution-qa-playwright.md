@@ -151,7 +151,7 @@ If filling/clicking doesn't work:
 ### Technical
 - [ ] Code runs without errors
 - [ ] No unhandled exceptions
-- [ ] API contracts satisfied (if applicable)
+- [ ] Code changes satisfied (if applicable)
 - [ ] Data models valid
 
 ### Integration

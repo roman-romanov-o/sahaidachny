@@ -1,10 +1,10 @@
 ---
-description: Define API contracts and interface specifications
+description: Define code changes and interface specifications
 argument-hint: [task-path] [--type=rest|graphql|grpc|event]
 allowed-tools: Read, Write, Glob, Grep, AskUserQuestion, Task, mcp__context7__resolve-library-id, mcp__context7__query-docs
 ---
 
-# API Contracts
+# Code Changes
 
 Define interfaces, API endpoints, and data contracts.
 
@@ -52,12 +52,12 @@ For each interface, determine:
 
 ### 3. Create Contract Files
 
-Create `{task_path}/api-contracts/{name}.md`:
+Create `{task_path}/code-changes/{name}.md`:
 
-#### REST API Contract
+#### REST Code Change
 
 ```markdown
-# API Contract: [Resource Name]
+# Code Change: [Resource Name]
 
 **Type:** REST
 **Base Path:** `/api/v1/[resource]`
@@ -237,12 +237,12 @@ Create `{task_path}/api-contracts/{name}.md`:
 - **Retention:** [Duration]
 ```
 
-### 4. Update API Contracts README
+### 4. Update Code Changes README
 
-Update `{task_path}/api-contracts/README.md`:
+Update `{task_path}/code-changes/README.md`:
 
 ```markdown
-# API Contracts
+# Code Changes
 
 Interface definitions and API specifications.
 
@@ -277,7 +277,7 @@ Good contracts:
 
 ## 5. Review Artifacts
 
-Launch the reviewer agent to validate API contracts:
+Launch the reviewer agent to validate code changes:
 
 ```
 Task tool:
@@ -288,9 +288,9 @@ Task tool:
 
     Review mode: contracts
     Task path: {task_path}
-    Artifacts to review: {task_path}/api-contracts/*.md (exclude README)
+    Artifacts to review: {task_path}/code-changes/*.md (exclude README)
 
-    Review the API contracts and report any issues.
+    Review the code changes and report any issues.
 ```
 
 If the reviewer finds blockers (🔴), fix before proceeding.

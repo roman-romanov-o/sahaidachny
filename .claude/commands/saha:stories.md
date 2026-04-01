@@ -71,16 +71,16 @@ For each approved story, create `{task_path}/user-stories/US-XXX-{slug}.md`:
 ## User Story
 
 As a **[persona]**,
-I want to **[action]**,
+I want to **[action — describe behavior, not implementation]**,
 So that **[benefit]**.
 
 ## Acceptance Criteria
 
-Conditions that must be true for this story to be complete:
+Observable conditions from the user's perspective (no internal code references):
 
-1. **Given** [initial context]
-   **When** [action is taken]
-   **Then** [expected outcome]
+1. **Given** [initial context — a user-visible state]
+   **When** [user action or system event]
+   **Then** [observable outcome — what the user sees/gets]
 
 2. **Given** [context]
    **When** [action]
@@ -88,19 +88,11 @@ Conditions that must be true for this story to be complete:
 
 ## Edge Cases
 
-Scenarios that need explicit handling:
+Scenarios that need explicit handling (describe behavior, not code paths):
 
 1. **[Edge case name]**
-   - Trigger: [What causes this]
-   - Expected behavior: [What should happen]
-
-2. **[Edge case name]**
-   - Trigger: [...]
-   - Expected behavior: [...]
-
-## Technical Notes
-
-[Any technical considerations from research]
+   - Trigger: [What user-visible situation causes this]
+   - Expected behavior: [What the user observes]
 
 ## Dependencies
 
@@ -117,6 +109,9 @@ Scenarios that need explicit handling:
 - Research: [Link to relevant research]
 - Design Decision: [DD-XXX if applicable]
 ```
+
+> **Note:** The template intentionally omits "Technical Notes" and "Key Files" sections.
+> Implementation details belong in `code-changes/` and `research/` artifacts, not in user stories.
 
 ### 6. Update User Stories README
 
@@ -160,12 +155,37 @@ Update `{task_path}/README.md` progress table:
 - Estimable (can estimate complexity)
 - Small (fits in one iteration)
 - Testable (has clear acceptance criteria)
+- **Implementation-agnostic** (describe WHAT, not HOW)
 
 **Avoid:**
 - Technical implementation details in the story itself
 - Compound stories (multiple features in one)
 - Stories without clear acceptance criteria
 - Stories that can't be demonstrated
+
+### CRITICAL: Keep Stories Implementation-Agnostic
+
+Stories describe **observable behavior** from the user/persona's perspective. They must NEVER contain:
+
+- **Internal code references:** No function names, class names, method signatures, or file paths
+  - ❌ "calls `build_skills_prompt()` to inject skills"
+  - ✅ "skills are loaded and included in the prompt"
+- **Implementation patterns:** No mention of specific algorithms, data structures, or design patterns
+  - ❌ "uses `FileChangeTracker` class with snapshot approach"
+  - ✅ "file changes are detected after execution"
+- **Code-level details in acceptance criteria:** Criteria describe observable outcomes, not internal mechanics
+  - ❌ "Given Codex runner's `_run()` method is invoked"
+  - ✅ "Given a task is submitted to the runner"
+- **File paths or line numbers in the story body**
+  - ❌ "Key files: `saha/runners/codex.py:220-243`"
+  - These belong in research artifacts or code-changes, not stories
+
+**Where do implementation details go?**
+- Research artifacts (`research/*.md`) — for exploration findings
+- Code changes (`code-changes/*.md`) — for interfaces, classes, and API modifications
+- Implementation plan (`implementation-plan/*.md`) — for step-by-step execution
+
+**The "Explain to a Product Manager" test:** If you couldn't read the story aloud to a non-technical stakeholder and have it make sense, it's too specific. Rewrite it in terms of behavior and outcomes.
 
 ## 8. Review Artifacts
 

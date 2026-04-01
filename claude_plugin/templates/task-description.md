@@ -80,7 +80,7 @@ Measurable outcomes that define "done":
 ### Optional
 
 - [ ] **UI Design** - `ui-design/` folder (for frontend work, uses `/frontend-design` skill)
-- [ ] **API Contracts** - `contracts/` folder (for API work)
+- [ ] **Code Changes** - `contracts/` folder (for API work)
 - [ ] **Design Decisions** - `decisions/` folder (for architectural choices)
 - [ ] **Research Report** - `research/` folder (for complex unknowns)
 

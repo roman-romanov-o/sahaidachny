@@ -1,4 +1,4 @@
-# API Contract: {{resource_name}}
+# Code Change: {{resource_name}}
 
 **Type:** REST
 **Base Path:** `/api/v1/{{resource}}`

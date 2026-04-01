@@ -36,7 +36,7 @@ Artifacts Found:
 │   └── US-003-password-reset.md
 ├── design-decisions/
 │   └── DD-001-jwt-auth.md
-├── api-contracts/
+├── code-changes/
 │   └── auth-api.md
 ├── test-specs/
 │   ├── e2e/user-auth-flow.md
@@ -60,7 +60,7 @@ Verify required artifacts exist based on mode:
 **Full Mode:**
 - [ ] All minimal requirements
 - [ ] At least 1 design decision
-- [ ] API contracts (if API changes involved)
+- [ ] code changes (if API changes involved)
 
 Report missing artifacts with suggestions.
 
@@ -81,7 +81,7 @@ Validate cross-references are valid:
 - No story should appear in multiple phases
 
 **Contracts ↔ Tests:**
-- API contracts should have integration test coverage
+- code changes should have integration test coverage
 
 Report inconsistencies:
 ```

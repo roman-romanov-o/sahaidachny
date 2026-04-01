@@ -737,9 +737,10 @@ class AgenticLoop:
         """Build the prompt for the test critique agent."""
         # Filter to only test files
         test_files = [f for f in files if "test" in f.lower() or f.endswith("_test.py")]
+        prod_files = [f for f in files if f not in test_files]
 
         parts = [
-            f"Analyze test quality for task: {config.task_id}",
+            f"Analyze test quality AND completeness for task: {config.task_id}",
             f"Task path: {config.task_path}",
             f"Iteration: {state.current_iteration}",
             "",
@@ -752,18 +753,63 @@ class AgenticLoop:
         else:
             parts.append("No specific test files identified. Search for test files in the project.")
 
+        if prod_files:
+            parts.append("")
+            parts.append("Production files changed (from this iteration):")
+            for f in prod_files:
+                parts.append(f"  - {f}")
+
         parts.extend(
             [
                 "",
-                "Analyze tests for hollow patterns:",
+                "## Phase 1: Completeness Check (MOST IMPORTANT)",
+                "",
+                "Cross-reference these sources to find MISSING tests:",
+                "",
+                f"1. **User stories** at `{config.task_path}/user-stories/US-*.md`",
+                "   - Read acceptance criteria — every AC should have at least one test",
+                "",
+                f"2. **Code changes** at `{config.task_path}/code-changes/*.md`",
+                "   - Read what interfaces/classes/APIs were planned",
+                "   - Every new class/endpoint/interface should have test coverage",
+                "",
+                f"3. **Test specs** at `{config.task_path}/test-specs/`",
+                "   - Read planned E2E, integration, and unit test specs",
+                "   - Check which planned tests actually got implemented",
+                "",
+                "4. **Actual test files** in the project",
+                "   - Find all test files covering changed code",
+                "   - Map existing tests back to acceptance criteria and code changes",
+                "",
+                "Report:",
+                "- `uncovered_acceptance_criteria`: ACs with no test",
+                "- `uncovered_code_changes`: planned interfaces/classes with no test",
+                "- `missing_test_specs`: planned test specs not yet implemented",
+                "",
+                "**Missing tests = automatic failure.** If significant acceptance criteria "
+                "or code changes lack test coverage, set critique_passed=false.",
+                "",
+                "## Phase 2: Quality Check",
+                "",
+                "For existing tests, analyze:",
                 "- Over-mocking (>3 mocks per test)",
                 "- Mocking the System Under Test",
                 "- Placeholder tests (pass, ..., assert True)",
                 "- Assertions that only check mock calls, not outcomes",
+                "- E2E tests should exist for key user flows (E2E-first philosophy)",
                 "",
-                "Score A/B/C = proceed, D/F = block QA (tests are hollow)",
+                "## Scoring",
                 "",
-                'Return JSON: {"critique_passed": true/false, "test_quality_score": "A-F", "fix_info": "..."}',
+                "Score across 6 dimensions: mocking, assertions, structure, coverage, "
+                "completeness, independence.",
+                "**Completeness is now weighted highest** — tests that exist but don't cover "
+                "the plan are worse than no tests (false confidence).",
+                "",
+                "A/B = proceed, C/D/F = block QA",
+                "",
+                "Return JSON with critique_passed, test_quality_score, dimension_scores, "
+                "uncovered_acceptance_criteria, uncovered_code_changes, missing_test_specs, "
+                "and fix_info.",
             ]
         )
 
@@ -1293,7 +1339,7 @@ class AgenticLoop:
         """Build the prompt for the implementation agent.
 
         Provides TDD-focused context to guide the agent through:
-        1. Interface definition (from API contracts)
+        1. Interface definition (from code changes)
         2. Test writing (from test specs) - RED
         3. Implementation - GREEN
         """
@@ -1335,7 +1381,7 @@ class AgenticLoop:
                     "Follow the TDD approach:",
                     "",
                     "### Phase 1: Interfaces",
-                    f"- Read API contracts at `{config.task_path}/api-contracts/`",
+                    f"- Read code changes at `{config.task_path}/code-changes/`",
                     "- Create Pydantic models and Protocol classes for the contracts",
                     "",
                     "### Phase 2: Tests (Red)",

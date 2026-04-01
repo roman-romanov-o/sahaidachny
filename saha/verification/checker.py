@@ -88,7 +88,7 @@ class TaskVerifier:
         self._check_task_description()
         self._check_user_stories()
         self._check_test_specs()
-        self._check_api_contracts()
+        self._check_code_changes()
         self._check_implementation_plan()
         self._check_design_decisions()
         self._check_story_phase_assignment()
@@ -97,7 +97,7 @@ class TaskVerifier:
         self._check_task_description_content()
         self._check_user_stories_content()
         self._check_test_specs_content()
-        self._check_api_contracts_content()
+        self._check_code_changes_content()
         self._check_implementation_plan_content()
 
         status = self._determine_status()
@@ -226,33 +226,33 @@ class TaskVerifier:
             )
         )
 
-    def _check_api_contracts(self) -> None:
-        """Check for API contracts (required for TDD interface definition).
+    def _check_code_changes(self) -> None:
+        """Check for code changes (required for TDD interface definition).
 
-        API contracts define the interfaces (Pydantic models, protocols) that
+        code changes define the interfaces (Pydantic models, protocols) that
         the implementation agent creates in the TDD workflow.
         """
-        contracts_dir = self.task_path / "api-contracts"
+        contracts_dir = self.task_path / "code-changes"
 
         if not contracts_dir.exists():
             self.checks.append(
                 CheckResult(
-                    name="api-contracts",
+                    name="code-changes",
                     passed=False,
-                    message="api-contracts/ directory not found (needed for TDD interface definition)",
+                    message="code-changes/ directory not found (needed for TDD interface definition)",
                     is_warning=True,  # Warning because some tasks may not need full TDD
                 )
             )
             return
 
-        # Check for .md files in api-contracts/ excluding README
+        # Check for .md files in code-changes/ excluding README
         contracts = [f for f in contracts_dir.glob("*.md") if f.name.lower() != "readme.md"]
         if not contracts:
             self.checks.append(
                 CheckResult(
-                    name="api-contracts",
+                    name="code-changes",
                     passed=False,
-                    message="No API contract files found (needed for TDD interface definition)",
+                    message="No code change files found (needed for TDD interface definition)",
                     is_warning=True,
                 )
             )
@@ -260,9 +260,9 @@ class TaskVerifier:
 
         self.checks.append(
             CheckResult(
-                name="api-contracts",
+                name="code-changes",
                 passed=True,
-                message=f"{len(contracts)} API contract(s) found",
+                message=f"{len(contracts)} code change(s) found",
             )
         )
 
@@ -560,9 +560,9 @@ class TaskVerifier:
                 )
             )
 
-    def _check_api_contracts_content(self) -> None:
-        """Check API contracts content quality for TDD interface definition."""
-        contracts_dir = self.task_path / "api-contracts"
+    def _check_code_changes_content(self) -> None:
+        """Check code changes content quality for TDD interface definition."""
+        contracts_dir = self.task_path / "code-changes"
         if not contracts_dir.exists():
             return
 
@@ -605,7 +605,7 @@ class TaskVerifier:
             more = f" (+{len(issues) - 3} more)" if len(issues) > 3 else ""
             self.checks.append(
                 CheckResult(
-                    name="api-contracts-content",
+                    name="code-changes-content",
                     passed=False,
                     message=f"Contract issues: {'; '.join(display_issues)}{more}",
                     is_warning=True,
@@ -614,9 +614,9 @@ class TaskVerifier:
         else:
             self.checks.append(
                 CheckResult(
-                    name="api-contracts-content",
+                    name="code-changes-content",
                     passed=True,
-                    message="API contracts have proper schema definitions",
+                    message="code changes have proper schema definitions",
                 )
             )
 

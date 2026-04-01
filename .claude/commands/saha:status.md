@@ -32,7 +32,7 @@ For each planning category, count and list artifacts:
 | Task Description | `task-description.md` | 1 |
 | User Stories | `user-stories/US-*.md` | At least 1 |
 | Design Decisions | `design-decisions/DD-*.md` | 0+ (full mode) |
-| API Contracts | `api-contracts/*.md` (exclude README) | 0+ (full mode) |
+| Code Changes | `code-changes/*.md` (exclude README) | 0+ (full mode) |
 | Test Specs | `test-specs/**/*.md` (exclude READMEs) | At least 1 |
 | Implementation Plan | `implementation-plan/phase-*.md` | At least 1 |
 
@@ -58,7 +58,7 @@ Output format:
 ║  [●] Task Description      1 file        ✅ Complete     ║
 ║  [○] User Stories          0 files       ⏳ Not Started  ║
 ║  [◐] Design Decisions      1 file        🔄 In Progress  ║
-║  [○] API Contracts         0 files       ⏳ Not Started  ║
+║  [○] Code Changes         0 files       ⏳ Not Started  ║
 ║  [○] Test Specs            0 files       ⏳ Not Started  ║
 ║  [○] Implementation Plan   0 files       ⏳ Not Started  ║
 ╠══════════════════════════════════════════════════════════╣
@@ -75,7 +75,7 @@ Based on workflow order:
 2. Task Description → `/saha:task`
 3. User Stories → `/saha:stories`
 4. Design Decisions → `/saha:decide` (full mode only)
-5. API Contracts → `/saha:contracts` (full mode only)
+5. Code Changes → `/saha:contracts` (full mode only)
 6. Test Specs → `/saha:test-specs`
 7. Implementation Plan → `/saha:plan`
 

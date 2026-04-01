@@ -26,7 +26,7 @@ task-XX-short-name/
 │   ├── README.md                # Index of decisions
 │   ├── DD-001-decision-name.md  # Architecture decisions
 │   └── ...
-├── api-contracts/
+├── code-changes/
 │   ├── README.md                # Index of contracts
 │   ├── component-a.md           # Interface definitions
 │   └── ...
@@ -70,7 +70,7 @@ task-XX-short-name/
 | Task Description | Pending/Done | task-description.md |
 | User Stories | Pending/Done | user-stories/US-*.md |
 | Design Decisions | Pending/Done | design-decisions/DD-*.md |
-| API Contracts | Pending/Done | api-contracts/*.md |
+| Code Changes | Pending/Done | code-changes/*.md |
 | Test Specs | Pending/Done | test-specs/**/*.md |
 | Implementation Plan | Pending/Done | implementation-plan/phase-*.md |
 
@@ -179,10 +179,10 @@ As a [role], I want [feature] so that [benefit].
 - Other Decisions: DD-XXX
 ```
 
-### API Contract (component-name.md)
+### Code Change (component-name.md)
 
 ```markdown
-# API Contract: [Component Name]
+# Code Change: [Component Name]
 
 **Status:** Draft | Review | Approved
 **Last Updated:** YYYY-MM-DD
@@ -300,7 +300,7 @@ For existing codebases. Includes all steps:
 2. Task Description
 3. User Stories + Verification
 4. Design Decisions + Verification
-5. API Contracts + Verification
+5. Code Changes + Verification
 6. Test Specs + Verification
 7. Implementation Plan + Verification
 

@@ -36,7 +36,7 @@ Sahaidachny is an autonomous AI agent orchestrator designed for hierarchical tas
 
 | Capability | Description |
 |------------|-------------|
-| **Structured Planning** | Build hierarchical task specifications (not flat PRDs) with user stories, design decisions, API contracts, and test specs |
+| **Structured Planning** | Build hierarchical task specifications (not flat PRDs) with user stories, design decisions, code changes, and test specs |
 | **Autonomous Execution** | Run agentic loops across multiple context windows that implement, verify, and iterate |
 | **State Persistence** | Maintain learnings and progress between iterations, enabling resume after interruption |
 
@@ -323,9 +323,9 @@ Create Design Decisions (auto-generated)
     ↓
 Verify Design Decisions (user approval)
     ↓
-Create API Contracts Diff (auto-generated)
+Create Code Changes Diff (auto-generated)
     ↓
-Verify API Contracts (user approval)
+Verify Code Changes (user approval)
     ↓
 Create Test Specs (auto-generated)
     ↓
@@ -355,7 +355,7 @@ All planning commands are Claude Code slash commands prefixed with `/saha:`.
 | `/saha:task` | Interactive task description | `task-description.md`, `README.md` |
 | `/saha:stories` | Generate user stories from task | `user-stories/US-XXX.md` (multiple) |
 | `/saha:decide` | Record design decisions | `design-decisions/DD-XXX.md` |
-| `/saha:contracts` | Generate API contracts diff | `api-contracts/*.md` |
+| `/saha:contracts` | Generate code changes diff | `code-changes/*.md` |
 | `/saha:test-specs` | Generate test specifications | `test-specs/{e2e,int,unit}/*.md` |
 | `/saha:plan` | Generate implementation phases | `implementation-plan/phase-XX.md` |
 | `/saha:verify` | Interactive verification | Updates status in artifacts |
@@ -446,7 +446,7 @@ Interactive verification of any artifact type.
 ```bash
 /saha:verify stories              # Manual review of user stories
 /saha:verify stories --playwright # UI verification
-/saha:verify contracts --manual   # API contract review
+/saha:verify contracts --manual   # code change review
 ```
 
 ##### `/saha:status`
@@ -468,7 +468,7 @@ Planning Progress:  ████████░░ 80%
 ✓ User Stories      6/6 stories created
 ◐ Verify Stories    Awaiting approval
 ○ Design Decisions  0 decisions recorded
-○ API Contracts     0/3 contracts defined
+○ Code Changes     0/3 contracts defined
 ○ Test Specs        0/4 specs written
 ○ Implementation    0/5 phases planned
 
@@ -491,7 +491,7 @@ docs/tasks/task-XX-{name}/
 ├── design-decisions/
 │   ├── README.md               # Decision index
 │   └── DD-XXX-{name}.md        # Architecture decisions
-├── api-contracts/
+├── code-changes/
 │   ├── README.md               # Contract index
 │   └── {component}.md          # Interface definitions
 ├── implementation-plan/
@@ -1090,7 +1090,7 @@ Sahaidachny uses Pydantic Settings for configuration with environment variable s
 | `task_base_path` | `SAHA_TASK_BASE_PATH` | `docs/tasks` | Base folder for task artifacts |
 | `max_iterations` | `SAHA_MAX_ITERATIONS` | `10` | Default max loop iterations |
 | `runner` | `SAHA_RUNNER` | `claude` | Runner type (fallback): `claude`, `codex`, `gemini`, or `mock` |
-| `claude_model` | `SAHA_CLAUDE_MODEL` | `claude-sonnet-4-20250929` | Claude model to use |
+| `claude_model` | `SAHA_CLAUDE_MODEL` | `sonnet` | Claude model to use (`sonnet`, `opus`, `haiku`) |
 | `codex_model` | `SAHA_CODEX_MODEL` | _none_ | Codex model override (optional) |
 | `codex_sandbox` | `SAHA_CODEX_SANDBOX` | `workspace-write` | Codex sandbox policy |
 | `claude_dangerously_skip_permissions` | `SAHA_CLAUDE_DANGEROUSLY_SKIP_PERMISSIONS` | `false` | Disable Claude CLI permission prompts |
@@ -1128,7 +1128,7 @@ Sahaidachny uses Pydantic Settings for configuration with environment variable s
 ```bash
 # Runner configuration
 SAHA_RUNNER=claude
-SAHA_CLAUDE_MODEL=claude-sonnet-4-20250929
+SAHA_CLAUDE_MODEL=sonnet
 SAHA_MAX_ITERATIONS=15
 
 # To use Codex for execution agents:
@@ -1415,7 +1415,7 @@ SAHA_STATE_DIR=.sahaidachny
 SAHA_TASK_BASE_PATH=docs/tasks
 SAHA_MAX_ITERATIONS=10
 SAHA_RUNNER=claude
-SAHA_CLAUDE_MODEL=claude-sonnet-4-20250929
+SAHA_CLAUDE_MODEL=sonnet
 SAHA_CODEX_MODEL=o3
 SAHA_CODEX_SANDBOX=workspace-write
 SAHA_AGENTS__DEFAULT_RUNNER=claude

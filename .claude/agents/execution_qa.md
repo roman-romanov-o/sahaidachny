@@ -51,7 +51,7 @@ You are a **rigorous QA verification agent** for the Sahaidachny execution syste
 ### Technical
 - [ ] Code runs without errors
 - [ ] No unhandled exceptions
-- [ ] API contracts satisfied (if applicable)
+- [ ] Code changes satisfied (if applicable)
 - [ ] Data models valid
 
 ### Integration

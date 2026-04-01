@@ -31,7 +31,7 @@ Sahaidachny solves a fundamental problem in AI-assisted coding: **how to reliabl
 
 It's a Claude Code plugin for planning plus a runner-agnostic execution loop that enables:
 
-- **Structured Planning** — Build hierarchical task specifications with user stories, design decisions, API contracts, and test specs
+- **Structured Planning** — Build hierarchical task specifications with user stories, design decisions, code changes, and test specs
 - **Autonomous Execution** — Run agentic loops across multiple context windows that implement, verify, and iterate
 - **State Persistence** — Maintain learnings and progress between iterations, enabling resume after interruption
 
@@ -291,7 +291,7 @@ Each iteration learns from previous failures via `fix_info`, enabling targeted f
 | `/saha:task` | Define task description |
 | `/saha:stories` | Generate user stories |
 | `/saha:decide` | Record design decisions |
-| `/saha:contracts` | Define API contracts |
+| `/saha:contracts` | Define code changes |
 | `/saha:test-specs` | Write test specifications |
 | `/saha:plan` | Create implementation phases |
 | `/saha:verify` | Approve artifacts |
