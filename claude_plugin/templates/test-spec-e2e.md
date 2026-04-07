@@ -102,4 +102,4 @@ const selectors = {
 ## Related
 
 - **Stories:** {{story_ids}}
-- **API Contract:** {{api_contract}}
+- **Code Change:** {{code_change}}

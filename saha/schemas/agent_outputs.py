@@ -271,6 +271,9 @@ class DimensionScores(BaseModel):
     assertions: TestQualityScore = Field(description="Assertion quality (A-F)")
     structure: TestQualityScore = Field(description="Test structure & clarity (A-F)")
     coverage: TestQualityScore = Field(description="Coverage quality (A-F)")
+    completeness: TestQualityScore = Field(
+        description="Test completeness vs plan (A-F): are all needed tests present?"
+    )
     independence: TestQualityScore = Field(description="Test independence & stability (A-F)")
 
 
@@ -293,6 +296,18 @@ class TestCritiqueOutput(BaseModel):
     )
     files_missing_coverage: list[str] | None = Field(
         default=None, description="Changed files with NO test coverage (critical)"
+    )
+    missing_test_specs: list[str] | None = Field(
+        default=None,
+        description="Test specs from plan that have no corresponding test implementation",
+    )
+    uncovered_acceptance_criteria: list[str] | None = Field(
+        default=None,
+        description="Acceptance criteria from user stories not covered by any test",
+    )
+    uncovered_code_changes: list[str] | None = Field(
+        default=None,
+        description="Interfaces/classes from code-changes/ with no test coverage",
     )
     issues: list[TestCritiqueIssue] | None = Field(
         default=None, description="Specific problems found"

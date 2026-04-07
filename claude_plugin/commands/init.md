@@ -29,7 +29,7 @@ This creates:
 ├── README.md                    # Task dashboard
 ├── user-stories/README.md
 ├── design-decisions/README.md
-├── api-contracts/README.md
+├── code-changes/README.md
 ├── implementation-plan/README.md
 ├── test-specs/
 │   ├── README.md

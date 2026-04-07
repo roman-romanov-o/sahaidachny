@@ -14,7 +14,7 @@ PLANNING COMMANDS (in Claude Code):
   /saha:task           Define task description
   /saha:stories        Generate user stories
   /saha:decide         Document decision points
-  /saha:contracts      Define API contracts
+  /saha:contracts      Define code changes
   /saha:test-specs     Create test specifications
   /saha:verify <item>  Verify planning artifacts
   /saha:plan           Generate execution plan

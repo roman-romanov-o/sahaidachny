@@ -30,7 +30,7 @@ Ralph is a bash-based automation loop that:
 | Levels | Single (user stories) | Task → User Stories → Phases → Steps |
 | Requirements | Inline in JSON | Rich `US-XXX.md` with acceptance criteria |
 | Architecture | None | `DD-XXX.md` design decisions |
-| Interfaces | None | `api-contracts/*.md` |
+| Interfaces | None | `code-changes/*.md` |
 | Tests | Just "run tests" | Structured `test-specs/` with e2e/integration/unit |
 | Execution | Priority order | Phased implementation with dependencies |
 | Status | `passes: true/false` | Multi-level tracking |
@@ -51,7 +51,7 @@ task-XX/
 │   ├── README.md                # Index of decisions
 │   ├── DD-001-decision-name.md  # Architecture decisions
 │   └── ...
-├── api-contracts/
+├── code-changes/
 │   ├── README.md                # Index of contracts
 │   ├── component-a.md           # Interface definitions
 │   └── ...
@@ -128,9 +128,9 @@ Create Design Decisions (auto-generated)
     ↓
 Verify Design Decisions (user approval)
     ↓
-Create API Contracts Diff (auto-generated)
+Create Code Changes Diff (auto-generated)
     ↓
-Verify API Contracts (user approval)
+Verify Code Changes (user approval)
     ↓
 Create Test Specs (auto-generated)
     ↓
@@ -179,8 +179,8 @@ flowchart TD
     R_createStories --> R_verifyStories[/"Verify User Stories"/]
     R_verifyStories --> R_createDD["Create Design Decisions"]
     R_createDD --> R_verifyDD[/"Verify Design Decisions"/]
-    R_verifyDD --> R_createAPI["Create API Contracts Diff"]
-    R_createAPI --> R_verifyAPI[/"Verify API Contracts Diff"/]
+    R_verifyDD --> R_createAPI["Create Code Changes Diff"]
+    R_createAPI --> R_verifyAPI[/"Verify Code Changes Diff"/]
     R_verifyAPI --> R_createTest["Create Test Specs"]
     R_createTest --> R_verifyTest[/"Verify Test Specs"/]
     R_verifyTest --> R_createImpl["Create Implementation Plan"]
@@ -218,7 +218,7 @@ flowchart TD
 | `/saha:task` | Interactive task description | `task-description.md`, `README.md` |
 | `/saha:stories` | Generate user stories from task | `user-stories/US-XXX.md` |
 | `/saha:decide` | Record design decisions | `design-decisions/DD-XXX.md` |
-| `/saha:contracts` | Generate API contracts diff | `api-contracts/*.md` |
+| `/saha:contracts` | Generate code changes diff | `code-changes/*.md` |
 | `/saha:test-specs` | Generate test specifications | `test-specs/{e2e,int,unit}/*.md` |
 | `/saha:plan` | Generate implementation phases | `implementation-plan/phase-XX.md` |
 | `/saha:verify` | Interactive verification | Updates status in artifacts |
@@ -243,8 +243,8 @@ flowchart TD
 │       ↓                         → uses Playwright/scripts/manual        │
 │  /saha:decide            Record architectural decisions          │
 │       ↓                         → outputs design-decisions/DD-XXX.md    │
-│  /saha:contracts         Generate API contracts diff             │
-│       ↓                         → outputs api-contracts/*.md            │
+│  /saha:contracts         Generate code changes diff             │
+│       ↓                         → outputs code-changes/*.md            │
 │  /saha:test-specs        Generate test specifications            │
 │       ↓                         → outputs test-specs/{e2e,int,unit}     │
 │  /saha:plan              Generate implementation phases          │
@@ -266,7 +266,7 @@ flowchart TD
 ├── config.yaml          # Project-specific settings
 └── templates/           # Custom templates (optional)
     ├── user-story.md.j2
-    ├── api-contract.md.j2
+    ├── code-change.md.j2
     └── phase.md.j2
 ```
 
@@ -308,7 +308,7 @@ steps:
   design_decisions:
     status: pending
 
-  api_contracts:
+  code_changes:
     status: pending
 
   test_specs:
@@ -336,7 +336,7 @@ Planning Progress:  ████████░░ 80%
 ✓ User Stories      6/6 stories created
 ◐ Verify Stories    Awaiting approval
 ○ Design Decisions  0 decisions recorded
-○ API Contracts     0/3 contracts defined
+○ Code Changes     0/3 contracts defined
 ○ Test Specs        0/4 specs written
 ○ Implementation    0/5 phases planned
 
@@ -363,7 +363,7 @@ Next:    /saha:decide
 ```bash
 /saha:verify stories              # Manual review of user stories
 /saha:verify stories --playwright # Use Playwright MCP for UI stories
-/saha:verify contracts --manual   # Manual API contract review
+/saha:verify contracts --manual   # Manual code changes review
 /saha:verify test-specs --test    # Run tests to verify specs
 ```
 
@@ -378,7 +378,7 @@ Track relationships between artifacts:
 dependencies:
   US-001-view-fines:
     affects:
-      - api-contracts/fines-api.md
+      - code-changes/fines-api.md
     tested_by:
       - test-specs/e2e/e2e-view-fines.md
       - test-specs/integration/int-fines-service.md

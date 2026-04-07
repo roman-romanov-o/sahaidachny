@@ -1,12 +1,13 @@
 ---
 name: test-critique
 description: |
-  Comprehensive test quality analysis across 5 dimensions. Use when:
+  Comprehensive test quality and completeness analysis across 6 dimensions. Use when:
+  - Verifying ALL needed tests exist (cross-ref user stories, code changes, test specs)
   - Reviewing test implementations before QA
   - Verifying tests actually test real behavior
   - Detecting over-mocking, poor assertions, missing edge cases
   - Identifying flaky patterns and test smells
-version: 0.2.0
+version: 0.3.0
 globs:
   - "**/test_*.py"
   - "**/*_test.py"
@@ -29,21 +30,28 @@ Bad tests are worse than no tests:
 - **Brittle tests** break on refactoring even when behavior is correct
 - **Incomplete tests** miss edge cases that cause production bugs
 
-## Five Quality Dimensions
+## Six Quality Dimensions
 
-### 1. Mocking & Test Doubles (Weight: 30%)
+### 1. Completeness vs Plan (Weight: 30%) — MOST IMPORTANT
+Focus: Do we have ALL the tests the plan requires?
+- Cross-reference: user stories (acceptance criteria), code changes (interfaces), test specs (planned tests)
+- Every AC should have at least one test
+- Every planned test spec should be implemented
+- Every new interface/class from code-changes should have coverage
+
+### 2. Mocking & Test Doubles (Weight: 20%)
 Focus: Are we testing real code or just mocks?
 
-### 2. Assertion Quality (Weight: 25%)
+### 3. Assertion Quality (Weight: 20%)
 Focus: Do assertions actually catch bugs?
 
-### 3. Test Structure & Clarity (Weight: 20%)
+### 4. Test Structure & Clarity (Weight: 10%)
 Focus: Are tests maintainable and understandable?
 
-### 4. Coverage Quality (Weight: 15%)
+### 5. Coverage Quality (Weight: 10%)
 Focus: Do we test edge cases and error paths?
 
-### 5. Test Independence & Stability (Weight: 10%)
+### 6. Test Independence & Stability (Weight: 10%)
 Focus: Are tests reliable and isolated?
 
 ## Red Flags to Detect

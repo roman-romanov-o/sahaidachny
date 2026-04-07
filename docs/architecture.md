@@ -121,8 +121,8 @@ claude_plugin/
 │   ├── task-description.md
 │   ├── user-story.md
 │   ├── design-decision.md
-│   ├── api-contract-rest.md
-│   ├── api-contract-event.md
+│   ├── code-change-rest.md
+│   ├── code-change-event.md
 │   ├── test-spec-{e2e,integration,unit}.md
 │   ├── implementation-phase.md
 │   └── research-report.md
@@ -158,7 +158,7 @@ allowed-tools: Read, Write, Glob, Grep, ...
 | `/saha:task` | `commands/task.md` | Define task description | Read, Write, AskUserQuestion |
 | `/saha:stories` | `commands/stories.md:1-199` | Generate user stories | Read, Write, Glob, Task |
 | `/saha:decide` | `commands/decide.md` | Record design decisions | Read, Write, AskUserQuestion |
-| `/saha:contracts` | `commands/contracts.md` | Define API contracts | Read, Write, Glob |
+| `/saha:contracts` | `commands/contracts.md` | Define code changes | Read, Write, Glob |
 | `/saha:test-specs` | `commands/test-specs.md` | Create test specifications | Read, Write, Glob |
 | `/saha:plan` | `commands/plan.md:1-246` | Generate implementation phases | Read, Write, Glob, Grep, Task |
 | `/saha:verify` | `commands/verify.md` | Validate artifacts | Read, Write, Task |
@@ -221,8 +221,8 @@ Templates provide consistent structure for all planning artifacts.
 | Task Description | `templates/task-description.md` | `/saha:task` |
 | User Story | `templates/user-story.md` | `/saha:stories` |
 | Design Decision | `templates/design-decision.md` | `/saha:decide` |
-| REST API Contract | `templates/api-contract-rest.md` | `/saha:contracts` |
-| Event Contract | `templates/api-contract-event.md` | `/saha:contracts` |
+| REST Code Change | `templates/code-change-rest.md` | `/saha:contracts` |
+| Event Code Change | `templates/code-change-event.md` | `/saha:contracts` |
 | E2E Test Spec | `templates/test-spec-e2e.md` | `/saha:test-specs` |
 | Integration Test Spec | `templates/test-spec-integration.md` | `/saha:test-specs` |
 | Unit Test Spec | `templates/test-spec-unit.md` | `/saha:test-specs` |
@@ -734,7 +734,7 @@ class Settings(BaseSettings):
     task_base_path: Path = Path("docs/tasks")
     max_iterations: int = 10
     runner: Literal["claude", "codex", "gemini", "mock"] = "claude"
-    claude_model: str = "claude-sonnet-4-20250929"
+    claude_model: str = "sonnet"
     codex_model: str | None = None
     codex_sandbox: Literal["read-only", "workspace-write", "danger-full-access"] = "workspace-write"
     claude_dangerously_skip_permissions: bool = False

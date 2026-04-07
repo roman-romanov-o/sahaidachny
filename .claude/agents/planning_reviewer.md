@@ -70,18 +70,21 @@ Red flags:
 
 ### Mode: stories
 
-**Focus:** Story quality and testability
+**Focus:** Story quality, testability, and implementation-agnosticism
 
 Check:
 - Does each story deliver independent value?
 - Are acceptance criteria specific enough to write tests?
 - Are edge cases identified?
 - Do priorities make sense given dependencies?
+- **Are stories free of implementation details?** (no function names, class names, file paths, method signatures, internal code patterns)
 
 Red flags:
 - Stories that can't be demoed independently
 - Acceptance criteria without clear pass/fail conditions
 - "Happy path only" with no error handling stories
+- **Implementation leakage:** mentions of specific functions, classes, file paths, or internal code in story text or acceptance criteria (these belong in `code-changes/` or `research/`)
+- **Failing the "Product Manager" test:** if a non-technical stakeholder couldn't understand the story, it's too specific
 
 ### Mode: decide
 
@@ -100,31 +103,41 @@ Red flags:
 
 ### Mode: contracts
 
-**Focus:** API completeness and usability
+**Focus:** Code change completeness and accuracy
 
 Check:
-- Are all error cases documented?
-- Are request/response schemas complete with types?
-- Is authentication specified?
-- Are there breaking changes to existing APIs?
+- Are affected files and classes clearly identified?
+- Are new/modified signatures complete with types?
+- Are breaking changes flagged explicitly?
+- Do changes link back to user stories they serve?
+- Are error cases documented for API changes?
 
 Red flags:
-- Missing error responses
-- Fields without types or descriptions
-- No versioning strategy for breaking changes
+- Vague scope ("update the module") without specific files/classes
+- Missing field types or incomplete signatures
+- Breaking changes not flagged
+- Changes that don't trace back to any user story
 
 ### Mode: test-specs
 
-**Focus:** Coverage and clarity
+**Focus:** E2E-first coverage and clarity
 
 Check:
+- **Does every user story have at least one E2E test?** (top priority)
+- If a story lacks E2E coverage, is there an explicit justification?
+- Are E2E tests simulating the full user flow, not just calling a single function?
+- Are integration tests only used where E2E can't provide reliable coverage?
+- Are unit tests limited to genuinely complex isolated logic?
 - Is there test coverage for each acceptance criterion?
 - Are error paths tested, not just happy paths?
 - Is test data specified (not just "valid input")?
 - Can someone implement these tests without asking questions?
 
 Red flags:
-- Stories with no test coverage
+- **Stories covered only by unit tests** — this almost always means the E2E flow was skipped
+- **No E2E specs at all** — every task should have at least some E2E tests
+- Missing "E2E Gap Reason" in coverage matrix for stories without E2E tests
+- Over-reliance on mocks in integration tests (5+ mocks = probably wrong level)
 - Only positive test cases
 - Vague expected results like "works correctly"
 

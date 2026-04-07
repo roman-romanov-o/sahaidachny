@@ -8,6 +8,16 @@ allowed-tools: Read, Write, Glob, Grep, AskUserQuestion, Task
 
 Generate test specifications before implementation.
 
+## Testing Philosophy: E2E First
+
+**The test pyramid is inverted during planning.** We think top-down:
+
+1. **E2E tests are the top priority.** Every user story should have at least one E2E test that simulates the full flow a user goes through. These are the most valuable tests because they verify the system works as a whole.
+2. **Integration tests fill gaps** where E2E tests can't provide consistent or reliable coverage (e.g., error paths that are hard to trigger end-to-end, race conditions, third-party service boundaries).
+3. **Unit tests are written only when necessary** — for complex algorithms, tricky edge cases in pure logic, or when higher-level tests can't isolate the behavior.
+
+**The key question for every user story is:** "Can I write an E2E test that walks through the entire flow?" If yes, start there. Only drop down to integration/unit when E2E isn't feasible or sufficient.
+
 ## Arguments
 
 - **task-path** (optional): Path to task folder
@@ -20,7 +30,7 @@ Generate test specifications before implementation.
 ## Prerequisites
 
 - User stories must exist with acceptance criteria
-- Optionally: API contracts for integration tests
+- Optionally: code changes for integration tests
 
 ## Execution
 
@@ -31,12 +41,20 @@ Read all user stories and extract:
 - Edge cases
 - Error scenarios
 
-From API contracts (if exist):
+From code changes (if exist):
 - Endpoint behaviors
 - Error responses
 - Data validation rules
 
-### 2. Generate Test Specs by Type
+### 2. Generate Test Specs (Top-Down)
+
+**Start with E2E specs.** For each user story, ask:
+- What is the full user flow? Can I simulate it end-to-end?
+- If yes → write an E2E spec covering happy path + key error paths
+- If parts can't be tested E2E → write integration specs for those parts
+- If isolated logic is complex enough → write unit specs
+
+**Every story MUST have at least one E2E or integration test.** Unit-only coverage for a story is a red flag.
 
 #### E2E Tests (`test-specs/e2e/`)
 
@@ -108,7 +126,7 @@ Test component interactions and API behavior.
 ```markdown
 # Integration Test Spec: [Component/API Name]
 
-**Related:** US-XXX, [api-contract.md]
+**Related:** US-XXX, [code-change.md]
 **Priority:** Critical | High | Medium | Low
 **Status:** Draft | Ready | Implemented
 
@@ -219,16 +237,19 @@ Test isolated functions and classes.
 
 ### 3. Map Stories to Tests
 
-Create coverage matrix:
+Create coverage matrix. **Every story MUST have E2E coverage unless explicitly justified:**
 
 ```markdown
 # Test Coverage Matrix
 
-| Story | E2E | Integration | Unit |
-|-------|-----|-------------|------|
-| US-001 | TC-E2E-001, TC-E2E-002 | TC-INT-001 | TC-UNIT-001 |
-| US-002 | TC-E2E-003 | TC-INT-002, TC-INT-003 | - |
+| Story | E2E | Integration | Unit | E2E Gap Reason |
+|-------|-----|-------------|------|----------------|
+| US-001 | TC-E2E-001, TC-E2E-002 | TC-INT-001 | - | - |
+| US-002 | TC-E2E-003 | - | - | - |
+| US-003 | - | TC-INT-002, TC-INT-003 | - | Third-party API can't be called in E2E |
 ```
+
+If a story has no E2E test, the "E2E Gap Reason" column MUST explain why.
 
 ### 4. Update Test Specs README
 
@@ -266,12 +287,22 @@ Update each type's README with its specific test specs.
 ## Test Spec Guidelines
 
 Good test specs:
+- [ ] **Every user story has E2E coverage** (or an explicit reason why not)
+- [ ] E2E tests simulate the full user flow from start to finish
+- [ ] Integration tests only cover what E2E can't reach reliably
+- [ ] Unit tests only for complex isolated logic (not for glue code)
 - [ ] Map directly to acceptance criteria
 - [ ] Cover happy path AND error cases
 - [ ] Include specific test data
 - [ ] Define clear expected results
 - [ ] Are implementable without ambiguity
 - [ ] Don't duplicate coverage unnecessarily
+
+**Anti-patterns to avoid:**
+- Writing only unit/integration tests with no E2E coverage
+- Testing internal implementation details instead of user-visible behavior
+- Over-mocking: if you need 5+ mocks, it should probably be an integration test with real dependencies
+- Unit tests for simple CRUD or delegation logic
 
 ## 6. Review Artifacts
 

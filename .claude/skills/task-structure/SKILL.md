@@ -25,7 +25,7 @@ task-XX-short-name/
 │   ├── README.md                # Index of decisions
 │   ├── DD-001-decision-name.md  # Architecture decisions
 │   └── ...
-├── api-contracts/
+├── code-changes/
 │   └── ...
 ├── implementation-plan/
 │   ├── README.md                # Phase status tracking

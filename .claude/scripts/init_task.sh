@@ -107,10 +107,10 @@ mkdir -p "$TASK_PATH/test-specs/integration"
 mkdir -p "$TASK_PATH/test-specs/unit"
 mkdir -p "$TASK_PATH/research"
 
-# Full mode only: design decisions and API contracts
+# Full mode only: design decisions and code changes
 if [[ "$MODE" == "full" ]]; then
     mkdir -p "$TASK_PATH/design-decisions"
-    mkdir -p "$TASK_PATH/api-contracts"
+    mkdir -p "$TASK_PATH/code-changes"
 fi
 
 # Create main README based on mode
@@ -161,7 +161,7 @@ else
 | Task Description | Pending | task-description.md |
 | User Stories | Pending | user-stories/US-*.md |
 | Design Decisions | Pending | design-decisions/DD-*.md |
-| API Contracts | Pending | api-contracts/*.md |
+| Code Changes | Pending | code-changes/*.md |
 | Test Specs | Pending | test-specs/**/*.md |
 | Implementation Plan | Pending | implementation-plan/phase-*.md |
 
@@ -255,8 +255,8 @@ Architectural decisions and their rationale.
 _No artifacts yet._
 EOF
 
-    cat > "$TASK_PATH/api-contracts/README.md" << 'EOF'
-# API Contracts
+    cat > "$TASK_PATH/code-changes/README.md" << 'EOF'
+# Code Changes
 
 Interface definitions and API specifications.
 
@@ -280,8 +280,8 @@ if [[ -d "$TEMPLATE_DIR" ]]; then
     # Full mode only templates
     if [[ "$MODE" == "full" ]]; then
         [[ -f "$TEMPLATE_DIR/design-decision.md" ]] && cp "$TEMPLATE_DIR/design-decision.md" "$TASK_PATH/design-decisions/_TEMPLATE_design-decision.md"
-        [[ -f "$TEMPLATE_DIR/api-contract-rest.md" ]] && cp "$TEMPLATE_DIR/api-contract-rest.md" "$TASK_PATH/api-contracts/_TEMPLATE_api-contract-rest.md"
-        [[ -f "$TEMPLATE_DIR/api-contract-event.md" ]] && cp "$TEMPLATE_DIR/api-contract-event.md" "$TASK_PATH/api-contracts/_TEMPLATE_api-contract-event.md"
+        [[ -f "$TEMPLATE_DIR/code-change-rest.md" ]] && cp "$TEMPLATE_DIR/code-change-rest.md" "$TASK_PATH/code-changes/_TEMPLATE_code-change-rest.md"
+        [[ -f "$TEMPLATE_DIR/code-change-event.md" ]] && cp "$TEMPLATE_DIR/code-change-event.md" "$TASK_PATH/code-changes/_TEMPLATE_code-change-event.md"
     fi
 fi
 

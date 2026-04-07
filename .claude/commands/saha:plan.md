@@ -22,7 +22,7 @@ All prior planning steps should be complete:
 - Task description
 - User stories
 - Design decisions (full mode)
-- API contracts (full mode)
+- code changes (full mode)
 - Test specifications
 
 Run `/saha:status` to verify readiness.
@@ -35,7 +35,7 @@ Read and synthesize:
 - `{task_path}/task-description.md` - Scope and constraints
 - `{task_path}/user-stories/*.md` - Features to implement
 - `{task_path}/design-decisions/*.md` - Technical approach
-- `{task_path}/api-contracts/*.md` - Interfaces to build
+- `{task_path}/code-changes/*.md` - Interfaces to build
 - `{task_path}/test-specs/**/*.md` - Test requirements
 - `{task_path}/research/*.md` - Technical context
 
@@ -141,7 +141,7 @@ Phase is complete when:
 
 - **Stories:** US-XXX, US-YYY
 - **Decisions:** DD-XXX
-- **Contracts:** [api-contract.md]
+- **Contracts:** [code-change.md]
 - **Tests:** [test-spec.md]
 ```
 

@@ -166,5 +166,5 @@ If issues arise:
 
 - **Stories:** {{story_ids}}
 - **Decisions:** {{decision_ids}}
-- **Contracts:** {{api_contracts}}
+- **Contracts:** {{code_changes}}
 - **Tests:** {{test_specs}}
