@@ -117,7 +117,7 @@ class Settings(BaseSettings):
     max_retries_per_phase: int = 3
 
     runner: Literal["claude", "codex", "gemini", "mock"] = "claude"
-    claude_model: str = "claude-sonnet-4-5-20250929"  # Claude Sonnet 4.5
+    claude_model: str = "sonnet"
     claude_timeout: int = 300
     claude_dangerously_skip_permissions: bool = False
     codex_model: str | None = None

@@ -48,7 +48,7 @@ class ClaudeRunner(Runner):
 
     def __init__(
         self,
-        model: str = "claude-sonnet-4-20250514",
+        model: str = "sonnet",
         working_dir: Path | None = None,
         allowed_tools: list[str] | None = None,
         stream_output: bool = False,
@@ -172,6 +172,7 @@ class ClaudeRunner(Runner):
         try:
             process = subprocess.Popen(
                 json_cmd,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -332,6 +333,7 @@ class ClaudeRunner(Runner):
         try:
             process = subprocess.Popen(
                 stream_cmd,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
