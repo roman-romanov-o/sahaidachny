@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-05-05
+
+### Added
+- **Planning of Execution**: Support for scheduling and delayed task execution.
+- New `--delay` and `--at` flags for the `saha run` command to schedule background agent loops.
+- Background execution spawning with detached processes for scheduled tasks.
+- `LoopPhase.SCHEDULED` for tracking tasks awaiting execution.
+- Enhanced `saha status` to display scheduled execution times.
+- Background execution logs in `.saha_logs/saha-scheduled-<task-id>.log`.
+
 ## [0.7.4] - 2026-02-20
 
 ### Added

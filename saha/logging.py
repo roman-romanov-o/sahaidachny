@@ -83,7 +83,7 @@ class SahaRichHandler(RichHandler):
             show_path=False,
             rich_tracebacks=True,
             tracebacks_show_locals=False,
-            markup=True,
+            markup=False,
             **kwargs,
         )
 

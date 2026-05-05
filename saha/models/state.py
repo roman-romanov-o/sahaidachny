@@ -1,17 +1,18 @@
 """Execution state models for the agentic loop."""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class LoopPhase(str, Enum):
+class LoopPhase(StrEnum):
     """Current phase in the agentic loop."""
 
     IDLE = "idle"
+    SCHEDULED = "scheduled"
     IMPLEMENTATION = "implementation"
     TEST_CRITIQUE = "test_critique"
     QA = "qa"
@@ -23,7 +24,7 @@ class LoopPhase(str, Enum):
     FAILED = "failed"
 
 
-class StepStatus(str, Enum):
+class StepStatus(StrEnum):
     """Status of a single step in execution."""
 
     PENDING = "pending"
@@ -70,6 +71,7 @@ class ExecutionState(BaseModel):
     current_iteration: int = 0
     max_iterations: int = 10
     started_at: datetime | None = None
+    scheduled_at: datetime | None = None
     completed_at: datetime | None = None
     error_message: str | None = None
     iterations: list[IterationRecord] = Field(default_factory=list)
@@ -83,6 +85,7 @@ class ExecutionState(BaseModel):
         """Check if the loop is currently running."""
         return self.current_phase not in (
             LoopPhase.IDLE,
+            LoopPhase.SCHEDULED,
             LoopPhase.STOPPED,
             LoopPhase.COMPLETED,
             LoopPhase.FAILED,

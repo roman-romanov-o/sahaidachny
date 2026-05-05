@@ -10,6 +10,10 @@ This module contains commands for running and managing the agentic execution loo
 - version: Show version information
 """
 
+import subprocess
+import sys
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
@@ -34,6 +38,48 @@ from saha.verification import (
 
 # Constants
 DEFAULT_MAX_ITERATIONS = 5
+
+
+def _parse_duration(duration_str: str) -> int:
+    """Parse duration string (e.g., 1h, 30m, 10s) to seconds."""
+    if not duration_str:
+        return 0
+
+    try:
+        if duration_str.endswith("h"):
+            return int(duration_str[:-1]) * 3600
+        if duration_str.endswith("m"):
+            return int(duration_str[:-1]) * 60
+        if duration_str.endswith("s"):
+            return int(duration_str[:-1])
+        return int(duration_str)
+    except ValueError:
+        raise ValueError(
+            f"Invalid duration format: {duration_str}. Use e.g. 1h, 30m, 10s."
+        ) from None
+
+
+def _calculate_scheduled_at(delay: str | None, at: str | None) -> datetime:
+    """Calculate the scheduled time based on delay or at string."""
+    now = datetime.now()
+
+    if delay:
+        seconds = _parse_duration(delay)
+        return now + timedelta(seconds=seconds)
+
+    if at:
+        try:
+            # Try parsing HH:MM
+            t = time.strptime(at, "%H:%M")
+            scheduled = now.replace(hour=t.tm_hour, minute=t.tm_min, second=0, microsecond=0)
+            if scheduled < now:
+                # If time is in the past, assume tomorrow
+                scheduled += timedelta(days=1)
+            return scheduled
+        except ValueError:
+            raise ValueError(f"Invalid time format: {at}. Use HH:MM format (e.g. 14:00).") from None
+
+    return now
 
 
 # -----------------------------------------------------------------------------
@@ -65,6 +111,96 @@ def _complete_task_id(incomplete: str) -> list[str]:
 # -----------------------------------------------------------------------------
 
 
+def _schedule_execution(
+    task_id: str,
+    task_path: Path,
+    delay: str | None,
+    at: str | None,
+    max_iterations: int,
+    tools: str | None,
+    playwright: bool,
+    settings: Settings,
+) -> None:
+    """Schedule execution for later."""
+    scheduled_at = _calculate_scheduled_at(delay, at)
+
+    state_manager = StateManager(settings.state_dir)
+    enabled_tools = tools.split(",") if tools else None
+
+    # Create state and mark as scheduled
+    state = state_manager.create(
+        task_id=task_id,
+        task_path=task_path,
+        max_iterations=max_iterations,
+        enabled_tools=enabled_tools,
+    )
+    state.current_phase = LoopPhase.SCHEDULED
+    state.scheduled_at = scheduled_at
+    state_manager.save(state)
+
+    typer.echo(f"Task {task_id} scheduled for {scheduled_at.strftime('%Y-%m-%d %H:%M:%S')}")
+    typer.echo(f"Output will be logged to .saha_logs/saha-scheduled-{task_id}.log")
+
+    _spawn_background_execution(task_id, scheduled_at)
+
+
+def _spawn_background_execution(task_id: str, scheduled_at: datetime) -> None:
+    """Spawn a background process to run the task at scheduled time."""
+    delay_seconds = (scheduled_at - datetime.now()).total_seconds()
+    if delay_seconds < 0:
+        delay_seconds = 0
+
+    python_exe = sys.executable
+    saha_cmd = ["saha", "resume", task_id]
+
+    # Try to find the full path to 'saha' script in the same venv
+    saha_bin = Path(python_exe).parent / "saha"
+    if saha_bin.exists():
+        saha_cmd[0] = str(saha_bin)
+
+    # Log file for background execution
+    log_dir = Path(".saha_logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"saha-scheduled-{task_id}.log"
+
+    # Command that sleeps and then runs saha resume
+    cmd_parts = [
+        python_exe,
+        "-c",
+        f"import time, subprocess, os; "
+        f"time.sleep({delay_seconds}); "
+        f"log = open({str(log_file)!r}, 'a'); "
+        f"log.write('\\n--- Starting scheduled execution at ' + time.ctime() + ' ---\\n'); "
+        f"log.flush(); "
+        f"subprocess.run({saha_cmd!r}, stdout=log, stderr=log, check=False)"
+    ]
+
+    # Start detached background process
+    try:
+        if sys.platform == "win32":
+            # Windows detached process
+            DETACHED_PROCESS = 0x00000008
+            subprocess.Popen(
+                cmd_parts,
+                creationflags=DETACHED_PROCESS,
+                close_fds=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            # Unix detached process
+            subprocess.Popen(
+                cmd_parts,
+                start_new_session=True,
+                close_fds=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+    except Exception as e:
+        typer.echo(f"Warning: Failed to spawn background process: {e}", err=True)
+        typer.echo("Task remains scheduled but background process may not run.")
+
+
 def _run_command(
     task_id: str,
     task_path: Path | None,
@@ -77,6 +213,8 @@ def _run_command(
     dry_run: bool,
     verbose: bool,
     skip_verify: bool,
+    delay: str | None = None,
+    at: str | None = None,
 ) -> None:
     """Implementation of the run command logic."""
     setup_logging(verbose)
@@ -93,6 +231,19 @@ def _run_command(
         verbose, dry_run, qa_runner, default_runner, dangerously_skip_permissions
     )
     resolved_path = _resolve_and_validate_task_path(task_id, task_path, settings)
+
+    if delay or at:
+        if dry_run:
+            scheduled_at = _calculate_scheduled_at(delay, at)
+            typer.echo(
+                f"[DRY RUN] Would schedule task {task_id} for {scheduled_at.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            return
+        _schedule_execution(
+            task_id, resolved_path, delay, at, max_iterations, tools, playwright, settings
+        )
+        return
+
     enabled_tools = tools.split(",") if tools else None
 
     # Run verification unless explicitly skipped or dry-run
@@ -286,6 +437,8 @@ def _show_single_task_status(state_manager: StateManager, task_id: str, verbose:
     typer.echo(f"Task: {state.task_id}")
     typer.echo(f"Phase: {state.current_phase.value}")
     typer.echo(f"Iteration: {state.current_iteration}/{state.max_iterations}")
+    if state.scheduled_at:
+        typer.echo(f"Scheduled: {state.scheduled_at}")
     typer.echo(f"Started: {state.started_at}")
     typer.echo(f"Completed: {state.completed_at or 'N/A'}")
     if state.error_message and state.current_phase in (LoopPhase.FAILED, LoopPhase.STOPPED):
@@ -308,7 +461,11 @@ def _list_all_task_statuses(state_manager: StateManager) -> None:
     for tid in task_ids:
         state = state_manager.load(tid)
         if state:
-            typer.echo(f"  {tid}: {state.current_phase.value} (iter {state.current_iteration})")
+            status_line = f"  {tid}: {state.current_phase.value}"
+            if state.current_phase == LoopPhase.SCHEDULED and state.scheduled_at:
+                status_line += f" at {state.scheduled_at.strftime('%Y-%m-%d %H:%M:%S')}"
+            status_line += f" (iter {state.current_iteration})"
+            typer.echo(status_line)
 
 
 def _tools_command() -> None:
@@ -451,6 +608,14 @@ def register_execution_commands(app: typer.Typer) -> None:
             bool,
             typer.Option("--skip-verify", help="Skip artifact verification checks"),
         ] = False,
+        delay: Annotated[
+            str | None,
+            typer.Option("--delay", help="Delay execution (e.g., 1h, 30m, 10s)"),
+        ] = None,
+        at: Annotated[
+            str | None,
+            typer.Option("--at", help="Schedule execution at specific time (e.g., 14:00)"),
+        ] = None,
     ) -> None:
         """Run the agentic loop for a task.
 
@@ -492,6 +657,8 @@ def register_execution_commands(app: typer.Typer) -> None:
             dry_run,
             verbose,
             skip_verify,
+            delay,
+            at,
         )
 
     @app.command()
